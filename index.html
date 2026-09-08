@@ -1,54 +1,4387 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>手势坦克</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0e18">
+<title>钢铁洪流 - 坦克大战</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%;
+    min-height: 100dvh;
+    background: #0a0a1a;
+    font-family: 'Press Start 2P', 'Courier New', monospace;
+    overflow: hidden;
+    color: #fff;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #game-container {
+    position: relative;
+    width: 100%; height: 100%;
+    display: flex; justify-content: center; align-items: center;
+    /* 钢铁洪流主题：拉丝钢纹 + 铆钉阵列 + 军械库灯光 */
+    background-color: #060910;
+    background-image:
+      radial-gradient(ellipse 80% 55% at 50% 36%, rgba(110,160,255,0.10), rgba(110,160,255,0) 62%),
+      radial-gradient(circle, rgba(150,185,255,0.09) 1.2px, transparent 2px),
+      repeating-linear-gradient(115deg, rgba(255,255,255,0.018) 0 2px, transparent 2px 26px),
+      repeating-linear-gradient(0deg, rgba(130,170,255,0.026) 0 1px, transparent 1px 44px),
+      radial-gradient(ellipse at 50% 50%, #1b2334 0%, #0d1220 52%, #060910 100%);
+    background-size: auto, 48px 48px, auto, auto, auto;
+  }
+  canvas {
+    display: block;
+    image-rendering: pixelated;
+    image-rendering: -moz-crisp-edges;
+    image-rendering: crisp-edges;
+    background: #111122;
+    border: 4px solid #3a4a66;
+    box-shadow: 0 0 0 2px #141c2e, 0 0 34px rgba(70,130,220,0.28), inset 0 0 60px rgba(0,0,0,0.5);
+    /* 移动端自适应：保持 4:3 等比缩放 */
+    max-width: 100vw;
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+  /* 主菜单 */
+  #menu-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex; flex-direction: column;
+    justify-content: center; align-items: center;
+    background: rgba(5, 5, 20, 0.85);
+    z-index: 100;
+  }
+  #menu-overlay.hidden { display: none; }
+  .game-title {
+    font-size: 48px;
+    font-weight: 900;
+    background: linear-gradient(180deg, #ff6b35 0%, #ff9f1c 50%, #ffd60a 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    text-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+    letter-spacing: 4px;
+    margin-bottom: 8px;
+    animation: titleGlow 2s ease-in-out infinite alternate;
+  }
+  @keyframes titleGlow {
+    from { filter: drop-shadow(0 0 8px rgba(255, 150, 50, 0.6)); }
+    to { filter: drop-shadow(0 0 20px rgba(255, 200, 80, 0.9)); }
+  }
+  .game-subtitle {
+    font-size: 14px;
+    color: #6fb5ff;
+    letter-spacing: 6px;
+    margin-bottom: 8px;
+    text-shadow: 0 0 10px rgba(111, 181, 255, 0.6);
+  }
+  .menu-thanks {
+    font-size: 10px;
+    color: #6677aa;
+    letter-spacing: 3px;
+    margin-bottom: 42px;
+  }
+  .menu-btn {
+    width: 280px;
+    padding: 16px 24px;
+    margin: 8px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #fff;
+    background: linear-gradient(180deg, #2a4a7a 0%, #1a2a4a 100%);
+    border: 3px solid #4a8aff;
+    box-shadow: 0 4px 0 #0a1a3a, 0 0 15px rgba(80, 150, 255, 0.4);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+  .menu-btn:hover {
+    background: linear-gradient(180deg, #3a6aaa 0%, #2a4a7a 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #0a1a3a, 0 0 25px rgba(80, 150, 255, 0.7);
+  }
+  .menu-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #0a1a3a;
+  }
+  .menu-btn.orange {
+    background: linear-gradient(180deg, #cc5522 0%, #883311 100%);
+    border-color: #ff8844;
+    box-shadow: 0 4px 0 #441100, 0 0 15px rgba(255, 130, 60, 0.4);
+  }
+  .menu-btn.orange:hover {
+    background: linear-gradient(180deg, #ee6633 0%, #aa4422 100%);
+    box-shadow: 0 6px 0 #441100, 0 0 25px rgba(255, 130, 60, 0.7);
+  }
+  .menu-btn.green {
+    background: linear-gradient(180deg, #22aa55 0%, #116633 100%);
+    border-color: #44dd77;
+    box-shadow: 0 4px 0 #003311, 0 0 15px rgba(80, 255, 120, 0.4);
+  }
+  .menu-btn.green:hover {
+    background: linear-gradient(180deg, #33cc66 0%, #228844 100%);
+    box-shadow: 0 6px 0 #003311, 0 0 25px rgba(80, 255, 120, 0.7);
+  }
+  .thanks-link {
+    color: #6677bb;
+    text-decoration: underline dotted;
+    cursor: pointer;
+  }
+  .thanks-link:hover { color: #6fb5ff; }
+  /* 致谢面板 */
+  #thanks-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center; align-items: center;
+    background: rgba(5, 5, 20, 0.85);
+    z-index: 210;
+  }
+  #thanks-overlay.active { display: flex; }
+  .thanks-card {
+    max-width: 560px;
+    padding: 36px 48px;
+    background: rgba(15, 15, 40, 0.92);
+    border: 2px solid #3a3a6a;
+    text-align: center;
+  }
+  .thanks-title {
+    font-size: 20px;
+    color: #6fb5ff;
+    letter-spacing: 6px;
+    margin-bottom: 10px;
+  }
+  .thanks-sub {
+    font-size: 10px;
+    color: #5566aa;
+    letter-spacing: 3px;
+    margin-bottom: 24px;
+  }
+  .thanks-body {
+    font-size: 11px;
+    line-height: 2.2;
+    color: #aabbff;
+    margin-bottom: 18px;
+  }
+  .thanks-body b { color: #d9e6ff; font-weight: normal; }
+  .thanks-sign {
+    font-size: 9px;
+    color: #5566aa;
+    letter-spacing: 2px;
+    margin-bottom: 26px;
+  }
+  /* 选择坦克面板 */
+  #tank-select {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center; align-items: center;
+    background: rgba(5, 5, 20, 0.92);
+    z-index: 101;
+  }
+  #tank-select.active { display: flex; }
+  .select-title {
+    font-size: 24px;
+    color: #ffd60a;
+    margin-bottom: 40px;
+    letter-spacing: 4px;
+    text-shadow: 0 0 15px rgba(255, 200, 50, 0.6);
+  }
+  .tank-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+  .tank-card {
+    width: 180px;
+    padding: 20px 16px;
+    background: linear-gradient(180deg, #1a1a3a 0%, #0d0d22 100%);
+    border: 3px solid #3a3a6a;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+  }
+  .tank-card:hover {
+    border-color: #6fb5ff;
+    transform: translateY(-4px);
+    box-shadow: 0 8px 20px rgba(80, 150, 255, 0.3);
+  }
+  .tank-card.selected {
+    border-color: #ffd60a;
+    box-shadow: 0 0 20px rgba(255, 200, 50, 0.6);
+  }
+  .tank-preview {
+    width: 80px; height: 80px;
+    margin: 0 auto 14px;
+    image-rendering: pixelated;
+  }
+  .tank-name {
+    font-size: 14px;
+    color: #fff;
+    margin-bottom: 10px;
+    letter-spacing: 2px;
+  }
+  .tank-type-label {
+    font-size: 10px;
+    color: #88aaff;
+    margin-bottom: 12px;
+  }
+  .stat-row {
+    display: flex; justify-content: space-between;
+    font-size: 9px;
+    color: #888;
+    margin: 4px 0;
+  }
+  .stat-bar {
+    width: 60px; height: 6px;
+    background: #222;
+    border: 1px solid #444;
+    position: relative;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .stat-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #44dd77, #ffd60a, #ff6b35);
+  }
+  /* 结算面板 */
+  #result-overlay {
+    position: absolute; top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: none;
+    flex-direction: column;
+    justify-content: center; align-items: center;
+    background: rgba(5, 5, 20, 0.9);
+    z-index: 200;
+  }
+  #result-overlay.active { display: flex; }
+  .result-title {
+    font-size: 48px;
+    margin-bottom: 30px;
+    letter-spacing: 8px;
+    animation: titleGlow 1.5s ease-in-out infinite alternate;
+  }
+  .result-title.victory {
+    background: linear-gradient(180deg, #ffd60a 0%, #ff9f1c 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .result-title.defeat {
+    background: linear-gradient(180deg, #ff3333 0%, #aa1111 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .result-stats {
+    background: rgba(20, 20, 50, 0.8);
+    border: 2px solid #4a4a8a;
+    padding: 24px 48px;
+    margin-bottom: 30px;
+    font-size: 14px;
+    line-height: 2;
+    color: #aabbff;
+  }
+  .result-stats span { color: #fff; font-weight: bold; }
+  @keyframes achSlide {
+    0% { transform: translateX(-50%) translateY(-40px); opacity: 0; }
+    100% { transform: translateX(-50%) translateY(0); opacity: 1; }
+  }
+  #tutorial-dialog.active { display: flex !important; }
+  /* 教程激活时禁用触控层交互，防止按钮拦截教程点击 */
+  #touch-controls.tutorial-active { pointer-events: none !important; }
+  #touch-controls.tutorial-active * { pointer-events: none !important; }
+  /* ===== 移动端触控控件（仅触屏设备、游戏中显示） ===== */
+  #touch-controls {
+    position: absolute; inset: 0;
+    z-index: 170;
+    display: none;
+    pointer-events: none;
+  }
+  #touch-controls.on { display: block; }
+  #tc-joy {
+    position: absolute; left: calc(22px + env(safe-area-inset-left)); bottom: calc(30px + env(safe-area-inset-bottom));
+    width: 132px; height: 132px; border-radius: 50%;
+    background: rgba(18,26,48,0.55);
+    border: 2px solid rgba(110,160,255,0.45);
+    box-shadow: 0 0 18px rgba(60,110,200,0.25), inset 0 0 24px rgba(0,0,0,0.45);
+    pointer-events: auto; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #tc-knob {
+    position: absolute; left: 50%; top: 50%;
+    width: 58px; height: 58px; margin: -29px 0 0 -29px;
+    border-radius: 50%;
+    background: rgba(90,140,230,0.55);
+    border: 2px solid rgba(160,200,255,0.8);
+    box-shadow: 0 0 12px rgba(90,150,255,0.5);
+  }
+  .tc-btn {
+    position: absolute;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 50%; font-size: 26px; color: #fff;
+    background: rgba(20,30,55,0.6);
+    border: 2px solid rgba(255,140,70,0.55);
+    box-shadow: 0 0 14px rgba(255,120,50,0.25), inset 0 0 16px rgba(0,0,0,0.4);
+    pointer-events: auto; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tc-btn.press { transform: scale(0.92); filter: brightness(1.5); }
+  /* 触控按钮标签指引 */
+  .tc-label {
+    position: absolute; top: -16px; left: 50%; transform: translateX(-50%);
+    font-size: 8px; color: #88aacc; letter-spacing: 1px; white-space: nowrap;
+    pointer-events: none; opacity: 0.7; text-transform: uppercase;
+  }
+  #tc-fire { right: calc(24px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
+  #tc-skill {
+    right: calc(36px + env(safe-area-inset-right)); bottom: calc(138px + env(safe-area-inset-bottom)); width: 64px; height: 64px;
+    font-size: 22px; color: #bfe8ff;
+    border-color: rgba(120,220,255,0.55);
+    box-shadow: 0 0 14px rgba(80,200,255,0.3), inset 0 0 16px rgba(0,0,0,0.4);
+  }
+  /* 摇杆方向箭头指引 */
+  .tc-joy-arrow {
+    position: absolute; font-size: 12px; color: rgba(140,180,255,0.5);
+    pointer-events: none; line-height: 1;
+  }
+  .tc-joy-arrow.up { top: 6px; left: 50%; transform: translateX(-50%); }
+  .tc-joy-arrow.down { bottom: 6px; left: 50%; transform: translateX(-50%); }
+  .tc-joy-arrow.left { left: 6px; top: 50%; transform: translateY(-50%); }
+  .tc-joy-arrow.right { right: 6px; top: 50%; transform: translateY(-50%); }
+  #tc-pause {
+    position: absolute; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right));
+    width: 42px; height: 42px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px; font-size: 16px; color: #9fc0ff;
+    background: rgba(18,26,48,0.6);
+    border: 1px solid rgba(110,160,255,0.4);
+    pointer-events: auto; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* —— P2 操作区（双人模式，红色系区分；默认隐藏） —— */
+  #tc-joy2, #tc-fire2, #tc-skill2 { display: none; }
+  #tc-joy2 {
+    position: absolute; right: calc(22px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom));
+    width: 132px; height: 132px; border-radius: 50%;
+    background: rgba(48,18,18,0.55);
+    border: 2px solid rgba(255,120,110,0.5);
+    box-shadow: 0 0 18px rgba(200,60,60,0.25), inset 0 0 24px rgba(0,0,0,0.45);
+    pointer-events: auto; touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  #tc-knob2 {
+    position: absolute; left: 50%; top: 50%;
+    width: 58px; height: 58px; margin: -29px 0 0 -29px;
+    border-radius: 50%;
+    background: rgba(230,110,90,0.55);
+    border: 2px solid rgba(255,180,160,0.8);
+    box-shadow: 0 0 12px rgba(255,120,90,0.5);
+  }
+  #tc-fire2 {
+    right: calc(24px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom));
+    width: 86px; height: 86px;
+    border-color: rgba(255,110,90,0.6);
+    box-shadow: 0 0 14px rgba(255,90,60,0.3), inset 0 0 16px rgba(0,0,0,0.4);
+  }
+  #tc-skill2 {
+    right: calc(36px + env(safe-area-inset-right)); bottom: calc(138px + env(safe-area-inset-bottom));
+    width: 64px; height: 64px; font-size: 22px; color: #ffd9c9;
+    border-color: rgba(255,160,120,0.6);
+    box-shadow: 0 0 14px rgba(255,140,80,0.3), inset 0 0 16px rgba(0,0,0,0.4);
+  }
+  /* —— 双人模式紧凑布局：P1 左手区，P2 右手区（横屏） —— */
+  #touch-controls.dual #tc-joy {
+    left: calc(16px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 110px; height: 110px;
+  }
+  #touch-controls.dual #tc-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  #touch-controls.dual #tc-fire {
+    left: calc(134px + env(safe-area-inset-left)); right: auto; bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; font-size: 20px;
+  }
+  #touch-controls.dual #tc-skill {
+    left: calc(142px + env(safe-area-inset-left)); right: auto; bottom: calc(94px + env(safe-area-inset-bottom));
+    width: 46px; height: 46px; font-size: 16px;
+  }
+  #touch-controls.dual #tc-joy2 {
+    display: block;
+    right: calc(16px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 110px; height: 110px;
+  }
+  #touch-controls.dual #tc-knob2 { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  #touch-controls.dual #tc-fire2 {
+    display: flex;
+    right: calc(134px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; font-size: 20px;
+  }
+  #touch-controls.dual #tc-skill2 {
+    display: flex;
+    right: calc(142px + env(safe-area-inset-right)); bottom: calc(94px + env(safe-area-inset-bottom));
+    width: 46px; height: 46px; font-size: 16px;
+  }
+  /* —— 双人竖屏回退（用户选择仍要竖屏时）：收窄两侧控件，320px 最窄手机也不重叠 —— */
+  @media (orientation: portrait) {
+    #touch-controls.dual #tc-joy {
+      left: calc(8px + env(safe-area-inset-left)); bottom: calc(14px + env(safe-area-inset-bottom));
+      width: 88px; height: 88px;
+    }
+    #touch-controls.dual #tc-knob { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+    #touch-controls.dual #tc-fire {
+      left: calc(100px + env(safe-area-inset-left)); right: auto; bottom: calc(16px + env(safe-area-inset-bottom));
+      width: 50px; height: 50px; font-size: 17px;
+    }
+    #touch-controls.dual #tc-skill {
+      left: calc(106px + env(safe-area-inset-left)); right: auto; bottom: calc(76px + env(safe-area-inset-bottom));
+      width: 40px; height: 40px; font-size: 14px;
+    }
+    #touch-controls.dual #tc-joy2 {
+      right: calc(8px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom));
+      width: 88px; height: 88px;
+    }
+    #touch-controls.dual #tc-knob2 { width: 40px; height: 40px; margin: -20px 0 0 -20px; }
+    #touch-controls.dual #tc-fire2 {
+      right: calc(100px + env(safe-area-inset-right)); bottom: calc(16px + env(safe-area-inset-bottom));
+      width: 50px; height: 50px; font-size: 17px;
+    }
+    #touch-controls.dual #tc-skill2 {
+      right: calc(106px + env(safe-area-inset-right)); bottom: calc(76px + env(safe-area-inset-bottom));
+      width: 40px; height: 40px; font-size: 14px;
+    }
+  }
+  /* —— 强制横屏（微信等内置浏览器锁定竖屏时，双人模式旋转画面模拟横屏） ——
+     容器由 JS 设为 宽=innerHeight 高=innerWidth，rotate(90deg)+translateY(-100%) 恰好铺满竖屏视口 */
+  #game-container.forced-landscape {
+    position: fixed;
+    top: 0; left: 0;
+    transform-origin: top left;
+    transform: rotate(90deg) translateY(-100%);
+  }
+  #game-container.forced-landscape #game-canvas {
+    max-width: 100%; max-height: 100%;
+  }
+  /* 强制横屏下恢复宽屏控件布局（覆盖上方竖屏媒体查询的窄屏回退） */
+  #game-container.forced-landscape #touch-controls.dual #tc-joy {
+    left: calc(16px + env(safe-area-inset-left)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 110px; height: 110px;
+  }
+  #game-container.forced-landscape #touch-controls.dual #tc-knob { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  #game-container.forced-landscape #touch-controls.dual #tc-fire {
+    left: calc(134px + env(safe-area-inset-left)); right: auto; bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; font-size: 20px;
+  }
+  #game-container.forced-landscape #touch-controls.dual #tc-skill {
+    left: calc(142px + env(safe-area-inset-left)); right: auto; bottom: calc(94px + env(safe-area-inset-bottom));
+    width: 46px; height: 46px; font-size: 16px;
+  }
+  #game-container.forced-landscape #touch-controls.dual #tc-joy2 {
+    right: calc(16px + env(safe-area-inset-right)); bottom: calc(18px + env(safe-area-inset-bottom));
+    width: 110px; height: 110px;
+  }
+  #game-container.forced-landscape #touch-controls.dual #tc-knob2 { width: 50px; height: 50px; margin: -25px 0 0 -25px; }
+  #game-container.forced-landscape #touch-controls.dual #tc-fire2 {
+    right: calc(134px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 62px; height: 62px; font-size: 20px;
+  }
+  #game-container.forced-landscape #touch-controls.dual #tc-skill2 {
+    right: calc(142px + env(safe-area-inset-right)); bottom: calc(94px + env(safe-area-inset-bottom));
+    width: 46px; height: 46px; font-size: 16px;
+  }
+  /* 强制横屏下教程弹窗改为顶部定位（同横屏矮屏规则），宽度基于旋转后容器 */
+  #game-container.forced-landscape #tutorial-dialog {
+    bottom: auto !important;
+    top: 8px !important;
+    width: min(96%, 600px) !important;
+    max-height: calc(100% - 16px) !important;
+    overflow-y: auto !important;
+  }
+  #game-container.forced-landscape #tutorial-dialog .tut-text { max-height: 28vh; overflow-y: auto; }
+  /* —— 双人模式横屏提示（竖屏时显示，不阻断游戏） —— */
+  #rotate-hint {
+    position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+    z-index: 176;
+    display: none; flex-direction: row; align-items: center; justify-content: center;
+    gap: 10px; text-align: center;
+    padding: 10px 18px;
+    max-width: 92vw;
+    background: rgba(5,8,18,0.92);
+    border: 1px solid rgba(110,160,255,0.4);
+    border-radius: 8px;
+    color: #bcd6ff;
+  }
+  #rotate-hint.show { display: flex; }
+  #rotate-hint .rh-icon { font-size: 28px; animation: rhSpin 2.2s ease-in-out infinite; }
+  @keyframes rhSpin {
+    0%, 20% { transform: rotate(0deg); }
+    55%, 80% { transform: rotate(90deg); }
+    100% { transform: rotate(0deg); }
+  }
+  #rotate-hint .rh-text { font-size: 11px; letter-spacing: 1px; line-height: 1.6; }
+  #rotate-hint .rh-skip { font-size: 10px; color: #667799; text-decoration: underline dotted; cursor: pointer; padding: 4px 8px; white-space: nowrap; }
+  /* ===== 进入模式温馨提示 ===== */
+  #mode-tip {
+    position: absolute; top: 64px; left: 50%;
+    transform: translateX(-50%);
+    max-width: 86vw;
+    padding: 10px 18px;
+    text-align: center;
+    background: rgba(10,16,34,0.88);
+    border: 1px solid #3a5a8a;
+    border-radius: 4px;
+    color: #bcd6ff; font-size: 11px; letter-spacing: 1px; line-height: 1.8;
+    z-index: 260; pointer-events: none; opacity: 0;
+  }
+  #mode-tip.show { animation: tipFade 3.4s ease forwards; }
+  @keyframes tipFade {
+    0% { opacity: 0; transform: translate(-50%, -8px); }
+    12% { opacity: 1; transform: translate(-50%, 0); }
+    80% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  /* ===== 移动端响应式（窄屏 / 矮屏适配） ===== */
+  @media (pointer: coarse) {
+    body { overscroll-behavior: none; }
+  }
+  /* 触屏窄屏：教程弹窗抬高，避开底部虚拟摇杆/按键 */
+  @media (pointer: coarse) and (max-width: 700px) {
+    #tutorial-dialog { bottom: 178px !important; }
+  }
+  /* 双人模式触屏：教程弹窗需更高避开两侧摇杆+开火键 */
+  #tutorial-dialog.dual-mode { bottom: 210px !important; }
+  /* 横屏矮屏：教程弹窗改为顶部定位，避开底部双侧触控区 */
+  @media (orientation: landscape) and (max-height: 500px) {
+    #tutorial-dialog {
+      bottom: auto !important;
+      top: 8px !important;
+      width: min(96vw, 600px) !important;
+      max-height: calc(100vh - 16px) !important;
+      overflow-y: auto !important;
+    }
+    #tutorial-dialog.dual-mode { top: 8px !important; bottom: auto !important; }
+    #tutorial-dialog .tut-text { max-height: 28vh; overflow-y: auto; }
+  }
+  @media (max-width: 700px) {
+    .game-title { font-size: 34px; letter-spacing: 3px; }
+    .game-subtitle { font-size: 11px; letter-spacing: 4px; margin-bottom: 6px; }
+    .menu-thanks { margin-bottom: 18px; }
+    .menu-btn { width: min(78vw, 280px); padding: 13px 18px; font-size: 12px; margin: 6px; }
+    .btn-row { gap: 10px; }
+    .btn-row .menu-btn { width: min(42vw, 220px); padding: 12px 10px; font-size: 11px; margin: 0; }
+    /* 内容超高时改为顶端对齐，避免 flex 居中裁掉顶部且无法滚动 */
+    #menu-overlay, #tank-select { justify-content: flex-start; }
+    #menu-overlay { padding: 5vh 0 44px; overflow-y: auto; }
+    #tank-select { overflow-y: auto; padding: 20px 0; touch-action: pan-y; }
+    /* 教程弹窗：窄屏收紧、吉祥物缩小、按钮加大触控区 */
+    #tutorial-dialog { padding: 12px !important; gap: 10px !important; }
+    #tutorial-dialog .tut-title { font-size: 12px !important; }
+    #tutorial-dialog .tut-text { font-size: 11px !important; margin-bottom: 8px !important; }
+    #tutorial-dialog .tut-next { padding: 10px 22px !important; font-size: 12px !important; }
+    #tutorial-dialog .tut-skip { padding: 8px 12px !important; }
+    #tutorial-dialog > div:first-child { width: 56px !important; height: 56px !important; }
+    #mascot-canvas { width: 56px !important; height: 56px !important; }
+    .tank-grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .tank-card { width: min(42vw, 180px); padding: 14px 10px; }
+    .select-title { font-size: 18px; margin-bottom: 20px; }
+    .result-title { font-size: 32px; }
+    .result-stats { padding: 16px 22px; font-size: 12px; }
+    .thanks-card { max-width: 92vw; padding: 24px 18px; }
+    .thanks-body { font-size: 10px; }
+  }
+  @media (max-height: 560px) {
+    .game-title { font-size: 26px; margin-bottom: 4px; }
+    .game-subtitle { margin-bottom: 4px; }
+    .menu-thanks { margin-bottom: 10px; }
+    .menu-btn { padding: 9px 14px; font-size: 11px; margin: 4px; }
+    .result-title { font-size: 26px; margin-bottom: 14px; }
+    .result-stats { margin-bottom: 16px; }
+  }
+  /* —— 横屏专用适配（宽屏矮屏：主菜单 + 坦克选择） —— */
+  @media (orientation: landscape) and (max-height: 500px) {
+    .game-title { font-size: 22px; letter-spacing: 2px; margin-bottom: 2px; }
+    .game-subtitle { font-size: 9px; letter-spacing: 3px; margin-bottom: 2px; }
+    .menu-thanks { font-size: 8px; margin-bottom: 8px; }
+    .menu-btn { width: min(46vw, 240px); padding: 7px 10px; font-size: 10px; margin: 3px; }
+    /* 主菜单改为横向两列，节省高度 */
+    #menu-overlay { padding: 2vh 0; overflow-y: auto; }
+    /* 坦克选择：4列但更紧凑 */
+    .select-title { font-size: 14px; margin-bottom: 8px; letter-spacing: 2px; }
+    .tank-grid { grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+    .tank-card { width: min(20vw, 140px); padding: 8px 6px; }
+    .tank-preview { width: 50px; height: 50px; margin-bottom: 6px; }
+    .tank-name { font-size: 10px; margin-bottom: 2px; }
+    .tank-type-label { font-size: 8px; margin-bottom: 4px; }
+    .stat-row { font-size: 7px; margin: 2px 0; }
+    .stat-bar { width: 40px; height: 5px; }
+    #tank-select { padding: 8px 0; overflow-y: auto; touch-action: pan-y; }
+    #select-step-indicator { gap: 8px; margin-bottom: 6px; }
+    .step-dot { width: 24px !important; height: 24px !important; font-size: 9px !important; }
+    .btn-row { gap: 8px; }
+    .btn-row .menu-btn { width: min(28vw, 160px); padding: 7px 8px; font-size: 9px; }
+  }
+  @media (orientation: landscape) and (max-height: 380px) {
+    .game-title { font-size: 18px; }
+    .menu-btn { padding: 5px 8px; font-size: 9px; margin: 2px; }
+    .tank-grid { gap: 4px; margin-bottom: 6px; }
+    .tank-card { padding: 5px 4px; }
+    .tank-preview { width: 40px; height: 40px; margin-bottom: 3px; }
+    .tank-name { font-size: 8px; }
+    .tank-type-label { font-size: 6px; margin-bottom: 2px; }
+    .stat-row { font-size: 6px; margin: 1px 0; }
+    .stat-bar { width: 30px; height: 4px; }
+    .select-title { font-size: 11px; margin-bottom: 4px; }
+    .btn-row .menu-btn { padding: 5px 6px; font-size: 8px; }
+  }
+  /* ============================================================
+     🧪 测试功能：摄像头手势控制（仅单人闯关启用，旁路输入层）
+     ============================================================ */
+  #gc-panel {
+    position: absolute;
+    top: calc(8px + env(safe-area-inset-top, 0px));
+    left: calc(8px + env(safe-area-inset-left, 0px));
+    z-index: 240;
+    display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
+    pointer-events: none; /* 整体不拦截游戏点击/触控，仅按钮可点 */
+    font-family: 'Courier New', monospace;
+  }
+  #gc-toggle {
+    pointer-events: auto;
+    background: rgba(12,18,36,0.88);
+    border: 1px solid #556688; color: #99aacc;
+    border-radius: 6px; padding: 5px 12px;
+    font-family: inherit; font-size: 12px; letter-spacing: 1px;
+    cursor: pointer; transition: all 0.2s;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    white-space: nowrap;
+  }
+  #gc-toggle:hover { filter: brightness(1.3); }
+  #gc-toggle.on { border-color: #00ff88; color: #00ff88; box-shadow: 0 0 10px rgba(0,255,136,0.35); }
+  #gc-preview {
+    display: none;
+    background: rgba(8,12,26,0.9);
+    border: 1px solid rgba(0,255,136,0.45);
+    border-radius: 6px; padding: 6px;
+    box-shadow: 0 0 14px rgba(0,255,136,0.18);
+  }
+  #gc-preview.on { display: block; }
+  #gc-canvas {
+    width: 168px; height: 126px; display: block;
+    background: #000; border-radius: 3px;
+  }
+  #gc-status {
+    margin-top: 5px; font-size: 11px; line-height: 1.4;
+    max-width: 168px; word-break: break-word;
+    color: #88aacc;
+  }
+  #gc-status.ok { color: #00ff88; }
+  #gc-status.wait { color: #ffcc44; }
+  #gc-status.err { color: #ff5566; }
+  #gc-note {
+    margin-top: 3px; font-size: 9px; line-height: 1.5;
+    color: #667799; max-width: 168px; letter-spacing: 0;
+  }
+  #gc-video { position: absolute; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; left: 0; top: 0; }
+  .gc-menu-note {
+    margin-top: 16px; font-size: 10px; color: #66ffaa;
+    letter-spacing: 1px; line-height: 1.8; opacity: 0.9;
+    padding: 0 12px;
+  }
+  /* —— 手机竖屏：面板缩小，避免遮挡画面与触控区 —— */
+  @media (max-width: 640px) {
+    #gc-canvas { width: 120px; height: 90px; }
+    #gc-status, #gc-note { max-width: 120px; }
+    #gc-status { font-size: 10px; }
+    #gc-note { font-size: 8px; line-height: 1.4; }
+    #gc-toggle { font-size: 11px; padding: 4px 10px; }
+  }
+  /* —— 手机横屏（矮屏）：进一步压缩，隐藏说明文字 —— */
+  @media (max-height: 480px) {
+    #gc-panel { gap: 3px; }
+    #gc-canvas { width: 104px; height: 64px; }
+    #gc-status, #gc-note { max-width: 104px; }
+    #gc-status { font-size: 9px; margin-top: 3px; line-height: 1.3; }
+    #gc-note { display: none; }
+    #gc-preview { padding: 4px; }
+    #gc-toggle { font-size: 10px; padding: 3px 8px; }
+  }
+</style>
 </head>
 <body>
-    <video id="video" width="640" height="480" autoplay playsinline style="border:1px solid #ccc;"></video>
-    <canvas id="canvas" width="640" height="480" style="position:absolute; top:8px; left:8px;"></canvas>
+<div id="game-container">
+  <canvas id="game-canvas" width="960" height="720"></canvas>
 
-    <!-- 用 script 标签加载（不用 importmap） -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <!-- 主菜单 -->
+  <div id="menu-overlay">
+    <div class="game-title">钢铁洪流</div>
+    <div class="game-subtitle">TANK  BATTLE</div>
+    <div class="menu-thanks">🙏 <span class="thanks-link" onclick="document.getElementById('thanks-overlay').classList.add('active')">致谢 · 谢谢同行</span></div>
+    <button class="menu-btn orange" onclick="Game.startTutorial()">🎮 单人闯关</button>
+    <button class="menu-btn green" onclick="Game.startMode('coop')">👥 双人协作</button>
+    <button class="menu-btn" onclick="Game.startMode('pvp')">⚔ 双人对抗</button>
+    <button class="menu-btn" onclick="Game.openAchievements()">🏆 成就展馆</button>
+    <div style="height:10px;"></div>
+    <div style="font-size:11px;color:#88aacc;letter-spacing:2px;margin-bottom:6px;">【重看新手指引 · 分模式】</div>
+    <div style="display:flex;flex-direction:column;gap:8px;align-items:center;">
+      <button class="menu-btn" onclick="Game.showTutorial('single')" style="width:300px;background:linear-gradient(180deg,#2a3a5a,#1a2a44);border-color:#4a8aff;">📖 重看单人闯关教程（7步）</button>
+      <button class="menu-btn" onclick="Game.showTutorial('coop')"  style="width:300px;background:linear-gradient(180deg,#234a2f,#102a1d);border-color:#66cc88;color:#d9ffd9;">📖 重看双人协作教程（7步）</button>
+      <button class="menu-btn" onclick="Game.showTutorial('pvp')"   style="width:300px;background:linear-gradient(180deg,#4a2a2a,#2a1010);border-color:#ff7766;color:#ffd9d9;">📖 重看双人对抗教程（7步）</button>
+    </div>
+    <div class="gc-menu-note">
+      🧪 测试功能：摄像头手势控制 P1<br>
+      ✋ 手在画面中的位置 = 移动方向（上下左右 / 斜向，等效 WASD）· ✊ 握拳 = 持续开火<br>
+      仅【🎮 单人闯关】模式启用 · 双人模式自动失效 · 不影响键盘/触控操作（技能仍用 Q/E 或 ⚡ 按钮）<br>
+      进入游戏后点击左上角「🖐 手势控制」并允许摄像头权限<br>
+      🌐 部署到 GitHub Pages 后用 https:// 链接打开即可直接使用；本地双击打开受浏览器安全限制，<br>
+      请运行同文件夹内「启动手势版-双击运行.bat」，或用 Live Server 以 localhost 打开
+    </div>
+  </div>
 
-    <script>
-        // 直接用全局变量，不需要 import
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
+  <!-- 坦克选择 -->
+  <div id="tank-select">
+    <div id="select-step-indicator" style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+      <div class="step-dot" id="step-dot-1" style="width:34px;height:34px;border-radius:50%;background:#222;border:2px solid #4488ff;color:#fff;font-family:inherit;display:flex;align-items:center;justify-content:center;font-weight:bold;">P1</div>
+      <div id="step-line" style="flex:1;min-width:120px;height:3px;background:#333;border-radius:2px;"><div id="step-line-fill" style="height:100%;width:0%;background:linear-gradient(90deg,#4488ff,#ff6644);transition:width 0.4s;"></div></div>
+      <div class="step-dot" id="step-dot-2" style="width:34px;height:34px;border-radius:50%;background:#222;border:2px solid #333;color:#888;font-family:inherit;display:flex;align-items:center;justify-content:center;font-weight:bold;">P2</div>
+      <div id="step-mode-hint" style="color:#88aaff;font-size:10px;letter-spacing:2px;margin-left:12px;"></div>
+    </div>
+    <div class="select-title" id="selectTitleText">选择你的坦克</div>
+    <div class="tank-grid" id="tankGrid"></div>
+    <div class="btn-row">
+      <button class="menu-btn" onclick="Game.backToMenu()">返回</button>
+      <button class="menu-btn orange" id="confirmTankBtn" onclick="Game.confirmTank()">开始战斗</button>
+    </div>
+  </div>
 
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+  <!-- 结算面板 -->
+  <div id="result-overlay">
+    <div class="result-title" id="resultTitle">胜利！</div>
+    <div class="result-stats" id="resultStats"></div>
+    <div class="btn-row">
+      <button class="menu-btn" onclick="Game.backToMenu()">返回菜单</button>
+      <button class="menu-btn orange" onclick="Game.restart()">再来一局</button>
+    </div>
+  </div>
 
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.5
-        });
+  <!-- 暂停面板 -->
+  <div id="pause-overlay" style="position:absolute;inset:0;background:rgba(0,0,0,0.65);z-index:180;display:none;flex-direction:column;justify-content:center;align-items:center;backdrop-filter:blur(3px);">
+    <div style="font-size:36px;color:#6fb5ff;letter-spacing:10px;margin-bottom:36px;text-shadow:0 0 20px rgba(111,181,255,0.8);">⏸ 游戏暂停</div>
+    <div id="pause-save-status" style="font-size:12px;color:#88ccaa;margin-bottom:18px;min-height:16px;"></div>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <button class="menu-btn orange" onclick="Game.togglePause()" style="width:280px;">▶ 继续游戏 (ESC)</button>
+      <button class="menu-btn" id="btn-save-achv" onclick="Game.savePermanentAchievements()" style="width:280px;background:linear-gradient(180deg,#3b5a2a,#1a2a10);border-color:#66cc55;color:#d9ff99;">💾 保存成就达成时间</button>
+      <button class="menu-btn" onclick="Game.quitToMenuFromPause()" style="width:280px;">⌂ 返回主菜单</button>
+    </div>
+    <div style="margin-top:28px;font-size:11px;color:#6688aa;letter-spacing:2px;">提示：按 ESC 或 P 键可随时暂停 / 保存后下次打开成就不丢失</div>
+  </div>
 
-        hands.onResults((results) => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-            if (results.multiHandLandmarks) {
-                for (const landmarks of results.multiHandLandmarks) {
-                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
-                    drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 2 });
-                }
+  <!-- 移动端触控（摇杆 + 开火/技能/暂停；双人模式左右分区） -->
+  <div id="touch-controls">
+    <div id="tc-pause">⏸<span class="tc-label" style="top:44px;">暂停</span></div>
+    <div id="tc-joy">
+      <div id="tc-knob"></div>
+      <span class="tc-joy-arrow up">▲</span>
+      <span class="tc-joy-arrow down">▼</span>
+      <span class="tc-joy-arrow left">◀</span>
+      <span class="tc-joy-arrow right">▶</span>
+      <span class="tc-label" style="bottom:-14px;top:auto;">P1 移动</span>
+    </div>
+    <div id="tc-skill" class="tc-btn">⚡<span class="tc-label">技能</span></div>
+    <div id="tc-fire" class="tc-btn">🔥<span class="tc-label">开火</span></div>
+    <!-- P2 操作区（仅双人模式显示，右手区） -->
+    <div id="tc-joy2">
+      <div id="tc-knob2"></div>
+      <span class="tc-joy-arrow up">▲</span>
+      <span class="tc-joy-arrow down">▼</span>
+      <span class="tc-joy-arrow left">◀</span>
+      <span class="tc-joy-arrow right">▶</span>
+      <span class="tc-label" style="bottom:-14px;top:auto;color:rgba(255,160,140,0.7);">P2 移动</span>
+    </div>
+    <div id="tc-skill2" class="tc-btn">⚡<span class="tc-label" style="color:rgba(255,160,140,0.7);">技能</span></div>
+    <div id="tc-fire2" class="tc-btn">💥<span class="tc-label" style="color:rgba(255,160,140,0.7);">开火</span></div>
+  </div>
+
+  <!-- 双人模式横屏提示（竖屏时顶部小卡片，不阻断游戏） -->
+  <div id="rotate-hint">
+    <div class="rh-icon">📱</div>
+    <div class="rh-text">建议横屏游玩 · 左右分区操作</div>
+    <div class="rh-skip" onclick="Game.dismissRotateHint()">知道了 ›</div>
+  </div>
+
+  <!-- 进入模式温馨提示 -->
+  <div id="mode-tip"></div>
+
+  <!-- 致谢面板 -->
+  <div id="thanks-overlay" onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="thanks-card">
+      <div class="thanks-title">致 谢</div>
+      <div class="thanks-sub">THANKS · 谢谢同行</div>
+      <div class="thanks-body">
+        这是一份新人作品，难免稚嫩，感谢包容。<br>
+        衷心感谢<b>浪尖儿社区</b>的每一位同行者：<br>
+        是你们的热心反馈、耐心指点与并肩前行，<br>
+        让这辆小坦克一步步开到今天。<br>
+        把每一次交流，变成下一次出发。<br>
+        愿我们继续在真实的社区里交换经验，<br>
+        也把微小的想法，做成有用的改变。
+      </div>
+      <div class="thanks-sign">—— 浪尖儿社区 · 钢铁洪流 · 2026 ——</div>
+      <button class="menu-btn" onclick="document.getElementById('thanks-overlay').classList.remove('active')" style="width:160px;font-size:11px;padding:10px 20px;">返回</button>
+    </div>
+  </div>
+
+  <!-- 🧪 测试功能：手势控制面板（旁路输入，不拦截游戏点击；仅单人闯关注入方向） -->
+  <div id="gc-panel">
+    <button id="gc-toggle">🖐 手势控制：关</button>
+    <div id="gc-preview">
+      <canvas id="gc-canvas" width="168" height="126"></canvas>
+      <div id="gc-status">点击按钮开启摄像头</div>
+      <div id="gc-note">🧪 测试功能 · ✋ 手的位置控制上下左右移动（等效WASD）· ✊ 握拳持续开火<br>仅【单人闯关】运行时生效 · 键盘/触控照常可用</div>
+    </div>
+    <video id="gc-video" autoplay playsinline muted></video>
+  </div>
+</div>
+
+<!-- 🧪 测试功能：MediaPipe 手势识别（CDN，仅本测试页引入，不影响游戏本体逻辑） -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ============================================================
+// 核心工具：事件总线
+// ============================================================
+const EventBus = {
+  events: {},
+  on(event, callback) {
+    if (!this.events[event]) this.events[event] = [];
+    this.events[event].push(callback);
+    return () => this.off(event, callback);
+  },
+  off(event, callback) {
+    if (this.events[event]) {
+      this.events[event] = this.events[event].filter(cb => cb !== callback);
+    }
+  },
+  emit(event, data) {
+    if (this.events[event]) {
+      this.events[event].forEach(cb => cb(data));
+    }
+  }
+};
+
+// ============================================================
+// 核心工具：有限状态机
+// ============================================================
+class StateMachine {
+  constructor(states) {
+    this.states = states;
+    this.current = Object.keys(states)[0];
+  }
+  transition(newState, data) {
+    if (this.states[newState]) {
+      if (this.states[this.current].onExit) this.states[this.current].onExit();
+      this.current = newState;
+      if (this.states[this.current].onEnter) this.states[this.current].onEnter(data);
+    }
+  }
+  update(dt) {
+    if (this.states[this.current].onUpdate) this.states[this.current].onUpdate(dt);
+  }
+  render(ctx) {
+    if (this.states[this.current].onRender) this.states[this.current].onRender(ctx);
+  }
+}
+
+// ============================================================
+// 输入管理器
+// ============================================================
+const InputManager = {
+  keys: {},
+  pressedThisFrame: {},
+  init() {
+    window.addEventListener('keydown', e => {
+      const k = e.key.toLowerCase();
+      if (!this.keys[k]) this.pressedThisFrame[k] = true;
+      this.keys[k] = true;
+      if ([' ', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(k)) e.preventDefault();
+    });
+    window.addEventListener('keyup', e => {
+      this.keys[e.key.toLowerCase()] = false;
+    });
+  },
+  isDown(key) { return !!this.keys[key.toLowerCase()]; },
+  wasPressed(key) {
+    const k = key.toLowerCase();
+    if (this.pressedThisFrame[k]) {
+      this.pressedThisFrame[k] = false;
+      return true;
+    }
+    return false;
+  },
+  // P1：单人=WASD+方向键兼容；双人(coop/pvp)=仅WASD，避免方向键与P2冲突
+  getP1() {
+    const isDual = (typeof Game !== 'undefined' && Game.mode && Game.mode !== 'single');
+    const up   = this.isDown('w')   || (!isDual && this.isDown('arrowup'));
+    const down = this.isDown('s')   || (!isDual && this.isDown('arrowdown'));
+    const left = this.isDown('a')   || (!isDual && this.isDown('arrowleft'));
+    const right= this.isDown('d')   || (!isDual && this.isDown('arrowright'));
+    // P1开火：单人支持空格/方向键(同move兼容)；双人模式下空格不影响P1（保留给可能的UI或P2）
+    const fire = this.isDown('j') || this.isDown('f') || (!isDual && this.isDown(' '));
+    const firePressed = this.wasPressed('j') || this.wasPressed('f') || (!isDual && this.wasPressed(' '));
+    const skill = this.wasPressed('q') || this.wasPressed('e');
+    return { up, down, left, right, fire, firePressed, skill };
+  },
+  // P2 (方向键 + Enter/Ctrl + /  + Shift/反斜杠)
+  getP2() {
+    return {
+      up: this.isDown('arrowup'),
+      down: this.isDown('arrowdown'),
+      left: this.isDown('arrowleft'),
+      right: this.isDown('arrowright'),
+      fire: this.isDown('enter') || this.isDown('control') || this.isDown('/'),
+      firePressed: this.wasPressed('enter') || this.wasPressed('/'),
+      skill: this.wasPressed('\\') || this.wasPressed('shift')
+    };
+  },
+  // —— 虚拟输入（移动端触控写入，与键盘完全同源） ——
+  setVirtual(key, down) {
+    const k = key.toLowerCase();
+    if (down && !this.keys[k]) this.pressedThisFrame[k] = true;
+    this.keys[k] = down;
+  },
+  tapVirtual(key) {
+    this.pressedThisFrame[key.toLowerCase()] = true;
+  }
+};
+
+// ============================================================
+// 移动端触控：虚拟摇杆 + 开火/技能/暂停（仅触屏设备启用）
+// 与键盘输入同源写入 InputManager，PC 端功能完全等效
+// ============================================================
+const TouchControls = {
+  enabled: false,
+  init() {
+    // ?touch=1 可在桌面浏览器强制启用（调试/验证用）；真机由触控能力自动判定
+    const forced = /[?&]touch=1/.test(location.search);
+    if (!forced && !matchMedia('(pointer: coarse)').matches && !('ontouchstart' in window)) return;
+    this.enabled = true;
+    const joy = document.getElementById('tc-joy');
+    const knob = document.getElementById('tc-knob');
+    const fire = document.getElementById('tc-fire');
+    const skill = document.getElementById('tc-skill');
+    const pauseBtn = document.getElementById('tc-pause');
+    if (!joy || !knob || !fire || !skill || !pauseBtn) return;
+    let joyId = null, cx = 0, cy = 0;
+    const R = 46, DEAD = R * 0.28; // 摇杆半径与死区
+    const setDir = (dx, dy) => {
+      const len = Math.hypot(dx, dy);
+      const on = len > DEAD;
+      const nx = len ? dx / len : 0, ny = len ? dy / len : 0;
+      InputManager.setVirtual('w', on && ny < -0.45);
+      InputManager.setVirtual('s', on && ny > 0.45);
+      InputManager.setVirtual('a', on && nx < -0.45);
+      InputManager.setVirtual('d', on && nx > 0.45);
+    };
+    joy.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      joyId = e.pointerId;
+      try { joy.setPointerCapture(joyId); } catch (err) {}
+      const r = joy.getBoundingClientRect();
+      cx = r.left + r.width / 2; cy = r.top + r.height / 2;
+      const d = TouchControls._mapDelta(e.clientX - cx, e.clientY - cy);
+      TouchControls._moveKnob(knob, d[0], d[1], R);
+      setDir(d[0], d[1]);
+    });
+    joy.addEventListener('pointermove', e => {
+      if (e.pointerId !== joyId) return;
+      e.preventDefault();
+      const d = TouchControls._mapDelta(e.clientX - cx, e.clientY - cy);
+      TouchControls._moveKnob(knob, d[0], d[1], R);
+      setDir(d[0], d[1]);
+    });
+    const endJoy = e => {
+      if (e.pointerId !== joyId) return;
+      joyId = null;
+      knob.style.transform = 'translate(0px, 0px)';
+      ['w', 'a', 's', 'd'].forEach(k => InputManager.setVirtual(k, false));
+    };
+    joy.addEventListener('pointerup', endJoy);
+    joy.addEventListener('pointercancel', endJoy);
+
+    // 开火：按住持续射击（等效 J/F/空格）
+    fire.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      try { fire.setPointerCapture(e.pointerId); } catch (err) {}
+      fire.classList.add('press');
+      InputManager.setVirtual('j', true);
+    });
+    const endFire = () => { fire.classList.remove('press'); InputManager.setVirtual('j', false); };
+    fire.addEventListener('pointerup', endFire);
+    fire.addEventListener('pointercancel', endFire);
+
+    // 技能：点按释放（等效 Q/E；游戏内校验充能，未满自动忽略）
+    skill.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      InputManager.tapVirtual('q');
+      skill.classList.add('press');
+      setTimeout(() => skill.classList.remove('press'), 130);
+    });
+
+    // 暂停（等效 ESC/P）
+    pauseBtn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      Game.togglePause();
+    });
+
+    // —— P2 操作区（双人模式：左手区摇杆 + 开火/技能，写入方向键/Enter/反斜杠，与 P2 键盘同源） ——
+    const joy2 = document.getElementById('tc-joy2');
+    const knob2 = document.getElementById('tc-knob2');
+    const fire2 = document.getElementById('tc-fire2');
+    const skill2 = document.getElementById('tc-skill2');
+    if (joy2 && knob2 && fire2 && skill2) {
+      let joy2Id = null, c2x = 0, c2y = 0;
+      const R2 = 40, DEAD2 = R2 * 0.28;
+      const setDir2 = (dx, dy) => {
+        const len = Math.hypot(dx, dy);
+        const on = len > DEAD2;
+        const nx = len ? dx / len : 0, ny = len ? dy / len : 0;
+        InputManager.setVirtual('arrowup', on && ny < -0.45);
+        InputManager.setVirtual('arrowdown', on && ny > 0.45);
+        InputManager.setVirtual('arrowleft', on && nx < -0.45);
+        InputManager.setVirtual('arrowright', on && nx > 0.45);
+      };
+      joy2.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        joy2Id = e.pointerId;
+        try { joy2.setPointerCapture(joy2Id); } catch (err) {}
+        const r = joy2.getBoundingClientRect();
+        c2x = r.left + r.width / 2; c2y = r.top + r.height / 2;
+        const d = TouchControls._mapDelta(e.clientX - c2x, e.clientY - c2y);
+        TouchControls._moveKnob(knob2, d[0], d[1], R2);
+        setDir2(d[0], d[1]);
+      });
+      joy2.addEventListener('pointermove', e => {
+        if (e.pointerId !== joy2Id) return;
+        e.preventDefault();
+        const d = TouchControls._mapDelta(e.clientX - c2x, e.clientY - c2y);
+        TouchControls._moveKnob(knob2, d[0], d[1], R2);
+        setDir2(d[0], d[1]);
+      });
+      const endJoy2 = e => {
+        if (e.pointerId !== joy2Id) return;
+        joy2Id = null;
+        knob2.style.transform = 'translate(0px, 0px)';
+        ['arrowup', 'arrowdown', 'arrowleft', 'arrowright'].forEach(k => InputManager.setVirtual(k, false));
+      };
+      joy2.addEventListener('pointerup', endJoy2);
+      joy2.addEventListener('pointercancel', endJoy2);
+
+      // P2 开火：按住持续射击（等效 Enter/Ctrl）
+      fire2.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        try { fire2.setPointerCapture(e.pointerId); } catch (err) {}
+        fire2.classList.add('press');
+        InputManager.setVirtual('enter', true);
+      });
+      const endFire2 = () => { fire2.classList.remove('press'); InputManager.setVirtual('enter', false); };
+      fire2.addEventListener('pointerup', endFire2);
+      fire2.addEventListener('pointercancel', endFire2);
+
+      // P2 技能：点按释放（等效 Shift/反斜杠）
+      skill2.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        InputManager.tapVirtual('\\');
+        skill2.classList.add('press');
+        setTimeout(() => skill2.classList.remove('press'), 130);
+      });
+    }
+
+    // 阻止长按菜单与误触
+    document.getElementById('game-container').addEventListener('contextmenu', e => e.preventDefault());
+  },
+  // 强制横屏时（容器旋转90°），把视口位移换算为游戏坐标位移：局部 = (vy, -vx)
+  _mapDelta(dx, dy) {
+    if (typeof Game !== 'undefined' && Game._forcedLandscape) return [dy, -dx];
+    return [dx, dy];
+  },
+  _moveKnob(knob, dx, dy, max) {
+    const len = Math.hypot(dx, dy);
+    if (len > max) { dx = dx / len * max; dy = dy / len * max; }
+    knob.style.transform = `translate(${dx}px, ${dy}px)`;
+  },
+  show(on) {
+    const el = document.getElementById('touch-controls');
+    if (el) {
+      el.classList.toggle('on', on && this.enabled);
+      if (!on) {
+        el.classList.remove('dual');
+        const hint = document.getElementById('rotate-hint');
+        if (hint) hint.classList.remove('show');
+      }
+    }
+  }
+};
+
+// ============================================================
+// 全局横竖屏检测：matchMedia + resize + orientationchange 三重保险
+// 横屏时自动收起双人竖屏提示，不阻断游戏
+// ============================================================
+(function() {
+  const mqLandscape = window.matchMedia('(orientation: landscape)');
+  const mqPortrait = window.matchMedia('(orientation: portrait)');
+  const onOrient = () => {
+    if (typeof Game !== 'undefined' && Game._updateDualLayout) Game._updateDualLayout(false);
+  };
+  window.addEventListener('resize', onOrient);
+  window.addEventListener('orientationchange', () => setTimeout(onOrient, 150));
+  if (mqLandscape.addEventListener) {
+    mqLandscape.addEventListener('change', onOrient);
+    mqPortrait.addEventListener('change', onOrient);
+  } else if (mqLandscape.addListener) {
+    mqLandscape.addListener(onOrient);
+    mqPortrait.addListener(onOrient);
+  }
+})();
+
+// ============================================================
+// 配置数据
+// ============================================================
+const CONFIG = {
+  TILE: 40,
+  MAP_W: 24,
+  MAP_H: 18,
+  get CANVAS_W() { return this.MAP_W * this.TILE; }, // 960
+  get CANVAS_H() { return this.MAP_H * this.TILE; }, // 720
+  BOSS_THRESHOLD: 8000,
+  STAGES: [
+    { id: 1, scoreMin: 0, scoreMax: 1000, spawnRate: 4.2, enemyPool: ['basic'], bgm: 'calm' },
+    { id: 2, scoreMin: 1000, scoreMax: 3000, spawnRate: 3.2, enemyPool: ['basic','fast'], bgm: 'rising' },
+    { id: 3, scoreMin: 3000, scoreMax: 6000, spawnRate: 2.2, enemyPool: ['basic','fast','heavy'], bgm: 'tense' },
+    { id: 4, scoreMin: 6000, scoreMax: 999999, spawnRate: 1.6, enemyPool: ['fast','heavy','elite'], bgm: 'tense' },
+  ]
+};
+
+const TILE_TYPES = { EMPTY: 0, BRICK: 1, STEEL: 2, WATER: 3, BUSH: 4, BASE: 5 };
+
+const TANK_TYPES = {
+  assault: {
+    name: '突击型', label: 'ASSAULT', color: '#44ccff', trackColor: '#226688',
+    hp: 100, speed: 170, fireRate: 0.32, bulletSpeed: 540, damage: 16,
+    skillName: '冲锋撞击', skillShort: '【快攻】短距加速，冲撞造成50伤害',
+    stats: { hp: 4, speed: 5, attack: 3, fireRate: 4 }
+  },
+  heavy: {
+    name: '重装型', label: 'HEAVY', color: '#ffaa44', trackColor: '#885522',
+    hp: 220, speed: 75, fireRate: 0.65, bulletSpeed: 400, damage: 32,
+    skillName: '能量护盾', skillShort: '【防御】4秒内免疫所有伤害',
+    stats: { hp: 5, speed: 2, attack: 5, fireRate: 2 }
+  },
+  artillery: {
+    name: '炮击型', label: 'ARTILLERY', color: '#ff5566', trackColor: '#882233',
+    hp: 120, speed: 95, fireRate: 0.85, bulletSpeed: 460, damage: 45,
+    skillName: '范围爆破弹', skillShort: '【AOE】3秒内子弹爆炸，溅射+毁墙',
+    stats: { hp: 3, speed: 2, attack: 5, fireRate: 2 }
+  },
+  stealth: {
+    name: '特工型', label: 'STEALTH', color: '#aa77ff', trackColor: '#553388',
+    hp: 120, speed: 145, fireRate: 0.38, bulletSpeed: 520, damage: 22,
+    skillName: '光学隐身', skillShort: '【战术】5秒隐身，敌人无法锁定目标',
+    stats: { hp: 3, speed: 4, attack: 4, fireRate: 4 }
+  }
+};
+
+const ENEMY_TYPES = {
+  // 低于对应定位玩家：前期兵种已削弱（降血量/伤害/射速），后期兵种保持挑战性
+  basic: { hp: 60, speed: 120, fireRate: 1.5, damage: 9, score: 50, color: '#aa3333', trackColor: '#551111', bulletSpeed: 340, skillChargeBase: 25 },
+  fast: { hp: 50, speed: 140, fireRate: 1.0, damage: 8, score: 80, color: '#33cc88', trackColor: '#116644', bulletSpeed: 400, skillChargeBase: 30 },
+  heavy: { hp: 170, speed: 60, fireRate: 1.8, damage: 22, score: 120, color: '#cc8833', trackColor: '#664411', bulletSpeed: 300, skillChargeBase: 20 },
+  elite: { hp: 180, speed: 115, fireRate: 1.0, damage: 18, score: 200, color: '#dd44dd', trackColor: '#772277', bulletSpeed: 420, skillChargeBase: 18 }
+};
+
+// ============================================================
+// 粒子系统（对象池）
+// ============================================================
+class ParticleSystem {
+  constructor() {
+    this.pool = [];
+    this.max = 500;
+    this.active = [];
+    for (let i = 0; i < this.max; i++) this.pool.push({ x:0,y:0,vx:0,vy:0,life:0,maxLife:1,color:'#fff',size:4,type:'square' });
+  }
+  spawn(x, y, opts = {}) {
+    if (this.active.length >= this.max) return;
+    const p = this.pool.pop();
+    if (!p) return;
+    p.x = x; p.y = y;
+    p.vx = opts.vx !== undefined ? opts.vx : (Math.random()-0.5) * 120;
+    p.vy = opts.vy !== undefined ? opts.vy : (Math.random()-0.5) * 120;
+    p.maxLife = opts.life || 0.5;
+    p.life = p.maxLife;
+    p.color = opts.color || '#ffffff';
+    p.size = opts.size || 4;
+    p.type = opts.type || 'square';
+    p.gravity = opts.gravity || 0;
+    this.active.push(p);
+  }
+  explosion(x, y, color = '#ff9933', count = 16, power = 1) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = (60 + Math.random() * 180) * power;
+      this.spawn(x, y, {
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.4 + Math.random() * 0.5,
+        color: Math.random() < 0.5 ? color : (Math.random() < 0.5 ? '#ffffff' : '#ffff66'),
+        size: 3 + Math.floor(Math.random() * 5),
+        gravity: 200 * power
+      });
+    }
+  }
+  sparks(x, y, color = '#ffffaa') {
+    for (let i = 0; i < 6; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 40 + Math.random() * 120;
+      this.spawn(x, y, {
+        vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+        life: 0.15 + Math.random() * 0.2,
+        color, size: 2 + Math.floor(Math.random() * 3)
+      });
+    }
+  }
+  blockDebris(x, y, color = '#aa5533') {
+    for (let i = 0; i < 8; i++) {
+      this.spawn(x + (Math.random()-0.5)*20, y + (Math.random()-0.5)*20, {
+        vx: (Math.random()-0.5)*160, vy: -50 - Math.random()*120,
+        life: 0.6 + Math.random()*0.4, color, size: 5 + Math.floor(Math.random()*3),
+        gravity: 400
+      });
+    }
+  }
+  pickupParticles(x, y, tx, ty, color = '#ffff66') {
+    for (let i = 0; i < 10; i++) {
+      const t = i * 0.03;
+      this.spawn(x, y, {
+        vx: (tx - x) * 1.8 + (Math.random()-0.5)*40,
+        vy: (ty - y) * 1.8 + (Math.random()-0.5)*40,
+        life: 0.4, color, size: 3 + Math.random()*2
+      });
+    }
+  }
+  update(dt) {
+    for (let i = this.active.length - 1; i >= 0; i--) {
+      const p = this.active[i];
+      p.life -= dt;
+      if (p.life <= 0) {
+        this.pool.push(this.active.splice(i, 1)[0]);
+        continue;
+      }
+      p.vy += p.gravity * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      p.vx *= 0.98;
+      p.vy *= 0.98;
+    }
+  }
+  render(ctx) {
+    for (const p of this.active) {
+      const alpha = Math.max(0, p.life / p.maxLife);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = p.color;
+      const s = p.size;
+      ctx.fillRect(Math.floor(p.x - s/2), Math.floor(p.y - s/2), s, s);
+    }
+    ctx.globalAlpha = 1;
+  }
+}
+
+// ============================================================
+// 相机震动
+// ============================================================
+class CameraShake {
+  constructor() { this.amplitude = 0; this.decay = 6; }
+  trigger(amt) { this.amplitude = Math.max(this.amplitude, amt); }
+  update(dt) { this.amplitude = Math.max(0, this.amplitude - this.decay * dt * this.amplitude); }
+  getOffset() {
+    if (this.amplitude < 0.1) return { x: 0, y: 0 };
+    return {
+      x: (Math.random() - 0.5) * 2 * this.amplitude,
+      y: (Math.random() - 0.5) * 2 * this.amplitude
+    };
+  }
+}
+
+// ============================================================
+// 实体：子弹
+// ============================================================
+class Bullet {
+  constructor(x, y, angle, speed, damage, owner, isExplosive = false) {
+    this.x = x; this.y = y;
+    this.vx = Math.cos(angle) * speed;
+    this.vy = Math.sin(angle) * speed;
+    this.damage = damage;
+    this.owner = owner; // 'player' | 'enemy' | 'p1' | 'p2'
+    this.isExplosive = isExplosive;
+    this.radius = isExplosive ? 8 : 5;
+    this.dead = false;
+    this.trail = [];
+  }
+  update(dt, map) {
+    // 尾迹
+    this.trail.push({ x: this.x, y: this.y });
+    if (this.trail.length > 5) this.trail.shift();
+
+    // 分步移动防止穿透
+    const steps = 3;
+    for (let s = 0; s < steps; s++) {
+      this.x += (this.vx * dt) / steps;
+      this.y += (this.vy * dt) / steps;
+      // 碰墙
+      if (this.checkTileCollision(map)) { this.dead = true; return; }
+      if (this.x < 0 || this.x > CONFIG.CANVAS_W || this.y < 0 || this.y > CONFIG.CANVAS_H) {
+        this.dead = true; return;
+      }
+    }
+  }
+  checkTileCollision(map) {
+    const tx = Math.floor(this.x / CONFIG.TILE);
+    const ty = Math.floor(this.y / CONFIG.TILE);
+    if (tx < 0 || ty < 0 || tx >= CONFIG.MAP_W || ty >= CONFIG.MAP_H) return true;
+    const t = map[ty][tx];
+    if (t === TILE_TYPES.STEEL) {
+      Game.particles.sparks(this.x, this.y, '#aaccff');
+      return true;
+    }
+    if (t === TILE_TYPES.BRICK) {
+      Game.damageTile(tx, ty, this.damage);
+      Game.particles.blockDebris(
+        tx * CONFIG.TILE + CONFIG.TILE/2,
+        ty * CONFIG.TILE + CONFIG.TILE/2,
+        '#aa5533'
+      );
+      return true;
+    }
+    return false;
+  }
+  render(ctx) {
+    // 尾迹
+    for (let i = 0; i < this.trail.length; i++) {
+      const t = this.trail[i];
+      const a = (i + 1) / this.trail.length * 0.5;
+      ctx.globalAlpha = a;
+      const col = this.owner.includes('player') || this.owner === 'p1' || this.owner === 'p2' ? '#ffdd55' : '#ff6644';
+      ctx.fillStyle = col;
+      const s = Math.floor(3 + i * 0.5);
+      ctx.fillRect(Math.floor(t.x-s/2), Math.floor(t.y-s/2), s, s);
+    }
+    ctx.globalAlpha = 1;
+    // 子弹本体
+    const col = this.owner.includes('player') || this.owner === 'p1' || this.owner === 'p2'
+      ? (this.isExplosive ? '#ff8800' : '#ffff66')
+      : (this.isExplosive ? '#ff2200' : '#ff4444');
+    ctx.fillStyle = col;
+    const s = this.radius * 2;
+    ctx.fillRect(Math.floor(this.x - s/2), Math.floor(this.y - s/2), s, s);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(Math.floor(this.x - 1), Math.floor(this.y - 1), 2, 2);
+  }
+}
+
+// ============================================================
+// 实体：道具
+// ============================================================
+class PowerUp {
+  constructor(x, y, type) {
+    this.x = x; this.y = y;
+    this.type = type; // 'hp' | 'ammo' | 'shield' | 'double' | 'speed'
+    this.size = 28;
+    this.timer = 12;
+    this.bobOffset = Math.random() * Math.PI * 2;
+    this.dead = false;
+  }
+  update(dt) {
+    this.timer -= dt;
+    this.bobOffset += dt * 4;
+    if (this.timer <= 0) this.dead = true;
+  }
+  render(ctx) {
+    const bob = Math.sin(this.bobOffset) * 3;
+    const pulse = 0.8 + Math.sin(this.bobOffset * 2) * 0.2;
+    const cx = this.x, cy = this.y + bob;
+    const s = this.size;
+
+    // 发光底
+    ctx.globalAlpha = 0.4 * pulse;
+    ctx.fillStyle = this.getColor();
+    ctx.fillRect(Math.floor(cx-s/2-4), Math.floor(cy-s/2-4), s+8, s+8);
+    ctx.globalAlpha = 1;
+
+    // 方块底
+    ctx.fillStyle = '#222';
+    ctx.fillRect(Math.floor(cx-s/2), Math.floor(cy-s/2), s, s);
+    ctx.fillStyle = this.getColor();
+    ctx.fillRect(Math.floor(cx-s/2)+2, Math.floor(cy-s/2)+2, s-4, s-4);
+
+    // 图标
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(this.getIcon(), cx, cy + 1);
+  }
+  getColor() {
+    return ({ hp:'#ff4466', ammo:'#ffcc44', shield:'#44ccff', double:'#aa66ff', speed:'#66ff88' })[this.type] || '#fff';
+  }
+  getIcon() {
+    return ({ hp:'♥', ammo:'★', shield:'◎', double:'※', speed:'»' })[this.type] || '?';
+  }
+}
+
+// ============================================================
+// 实体：坦克（基类）
+// ============================================================
+class Tank {
+  constructor(x, y, typeId, isPlayer = false, playerTag = 'player') {
+    this.typeId = typeId;
+    this.config = isPlayer ? TANK_TYPES[typeId] : ENEMY_TYPES[typeId];
+    this.x = x; this.y = y;
+    this.width = 34; this.height = 34;
+    this.hp = this.config.hp;
+    this.maxHp = this.config.hp;
+    this.angle = -Math.PI / 2; // 朝上
+    this.speed = this.config.speed;
+    this.damage = this.config.damage;
+    this.fireCooldown = 0;
+    this.fireRate = this.config.fireRate;
+    this.bulletSpeed = this.config.bulletSpeed;
+    this.isPlayer = isPlayer;
+    this.playerTag = playerTag;
+    this.dead = false;
+    this.hitFlash = 0;
+    // 技能：击杀充能机制（0~100，满100可释放）
+    this.skillCharge = 0;
+    this.skillName = isPlayer ? TANK_TYPES[typeId].skillName : '';
+    this.skillShort = isPlayer ? TANK_TYPES[typeId].skillShort : '';
+    this.skillActive = 0; // 技能激活时间
+    this.shieldActive = false;
+    this.invisibleActive = false;
+    this.chargeActive = false;
+    this.doubleFire = 0; // 双发Buff剩余时间
+    this.speedBoost = 0; // 加速Buff
+    // 履带动画
+    this.trackOffset = 0;
+    this.moving = false;
+  }
+  get box() {
+    return { x: this.x - this.width/2, y: this.y - this.height/2, w: this.width, h: this.height };
+  }
+  move(dir, dt, map, tanks) {
+    if (!dir) return;
+    let vx = 0, vy = 0;
+    if (dir.up) vy -= 1;
+    if (dir.down) vy += 1;
+    if (dir.left) vx -= 1;
+    if (dir.right) vx += 1;
+    const len = Math.hypot(vx, vy);
+    if (len === 0) { this.moving = false; return; }
+    vx /= len; vy /= len;
+
+    // 更新朝向
+    this.angle = Math.atan2(vy, vx);
+
+    let spd = this.speed * (this.speedBoost > 0 ? 1.6 : 1) * (this.chargeActive ? 2.8 : 1);
+    const newX = this.x + vx * spd * dt;
+    const newY = this.y + vy * spd * dt;
+
+    // 碰撞测试X
+    if (!this.collideAt(newX, this.y, map, tanks)) this.x = newX;
+    if (!this.collideAt(this.x, newY, map, tanks)) this.y = newY;
+
+    // 边框硬限制（绝对不可走出边框，padding=2px避免贴边卡住）
+    this.x = Math.max(this.width/2 + 2, Math.min(CONFIG.CANVAS_W - this.width/2 - 2, this.x));
+    this.y = Math.max(this.height/2 + 2, Math.min(CONFIG.CANVAS_H - this.height/2 - 2, this.y));
+
+    this.moving = true;
+    this.trackOffset = (this.trackOffset + spd * dt * 0.1) % 8;
+
+    // 冲锋撞击伤害
+    if (this.chargeActive && this.isPlayer) {
+      for (const t of tanks) {
+        if (t !== this && !t.isPlayer && !t.dead) {
+          const d = Math.hypot(t.x - this.x, t.y - this.y);
+          if (d < 36) {
+            t.takeDamage(50);
+            Game.cameraShake.trigger(8);
+          }
+        }
+      }
+    }
+  }
+  collideAt(nx, ny, map, tanks) {
+    const box = { x: nx - this.width/2, y: ny - this.height/2, w: this.width, h: this.height };
+    // 出界
+    if (box.x < 0 || box.y < 0 || box.x + box.w > CONFIG.CANVAS_W || box.y + box.h > CONFIG.CANVAS_H) return true;
+    // 地形碰撞
+    const minTx = Math.floor(box.x / CONFIG.TILE);
+    const maxTx = Math.floor((box.x + box.w - 1) / CONFIG.TILE);
+    const minTy = Math.floor(box.y / CONFIG.TILE);
+    const maxTy = Math.floor((box.y + box.h - 1) / CONFIG.TILE);
+    for (let ty = minTy; ty <= maxTy; ty++) {
+      for (let tx = minTx; tx <= maxTx; tx++) {
+        if (ty<0||tx<0||ty>=CONFIG.MAP_H||tx>=CONFIG.MAP_W) continue;
+        const t = map[ty][tx];
+        if (t === TILE_TYPES.BRICK || t === TILE_TYPES.STEEL || t === TILE_TYPES.WATER) return true;
+      }
+    }
+    // 坦克碰撞
+    for (const t of tanks) {
+      if (t === this || t.dead) continue;
+      if (this.invisibleActive && t.isPlayer) continue;
+      const tb = t.box;
+      if (box.x < tb.x + tb.w && box.x + box.w > tb.x && box.y < tb.y + tb.h && box.y + box.h > tb.y) return true;
+    }
+    return false;
+  }
+  fire(bullets) {
+    if (this.fireCooldown > 0) return;
+    this.fireCooldown = this.fireRate;
+    const shots = this.doubleFire > 0 ? 2 : 1;
+    const spread = this.doubleFire > 0 ? 0.15 : 0;
+    for (let i = 0; i < shots; i++) {
+      const a = this.angle + (shots === 2 ? (i - 0.5) * spread : 0);
+      const bx = this.x + Math.cos(a) * (this.width/2 + 4);
+      const by = this.y + Math.sin(a) * (this.height/2 + 4);
+      const isExp = this.isPlayer && this.typeId === 'artillery' && this.skillActive > 0;
+      bullets.push(new Bullet(bx, by, a, this.bulletSpeed, this.damage * (isExp ? 0.6 : 1), this.playerTag, isExp));
+    }
+    if (this.skillActive > 0 && this.typeId === 'artillery') { /* skill持续期间爆破弹 */ }
+  }
+  takeDamage(amt) {
+    if (this.shieldActive) return;
+    this.hp -= amt;
+    this.hitFlash = 0.15;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.dead = true;
+      Game.particles.explosion(this.x, this.y, this.isPlayer ? '#6688ff' : '#ff6633', 24, 1.2);
+      if (this.isPlayer) {
+        Game.cameraShake.trigger(14);
+        EventBus.emit('playerDied', this.playerTag);
+      } else {
+        Game.cameraShake.trigger(6);
+        EventBus.emit('enemyKilled', { type: this.typeId, x: this.x, y: this.y });
+      }
+    }
+  }
+  useSkill() {
+    if (this.skillCharge < 100 || !this.isPlayer) return false;
+    this.skillCharge = 0; // 释放后归零
+    switch (this.typeId) {
+      case 'assault':
+        this.skillActive = 0.9;
+        this.chargeActive = true;
+        break;
+      case 'heavy':
+        this.skillActive = 4;
+        this.shieldActive = true;
+        break;
+      case 'artillery':
+        this.skillActive = 3;
+        break;
+      case 'stealth':
+        this.skillActive = 5;
+        this.invisibleActive = true;
+        break;
+    }
+    Game.cameraShake.trigger(3);
+    Game.particles.spawn(this.x, this.y, { vx:0, vy:-40, life:0.6, color:'#ffee66', size:16 });
+    return true;
+  }
+  applyPowerUp(type) {
+    switch (type) {
+      case 'hp': this.hp = Math.min(this.maxHp, this.hp + 40); break;
+      case 'ammo': this.fireRate = Math.max(0.15, this.fireRate * 0.75); this.doubleFire = Math.max(this.doubleFire, 6); break;
+      case 'shield': this.shieldActive = true; this.skillActive = Math.max(this.skillActive, 4); break;
+      case 'double': this.doubleFire = 10; break;
+      case 'speed': this.speedBoost = 8; break;
+    }
+  }
+  update(dt, map, tanks, bullets) {
+    this.fireCooldown = Math.max(0, this.fireCooldown - dt);
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.doubleFire = Math.max(0, this.doubleFire - dt);
+    this.speedBoost = Math.max(0, this.speedBoost - dt);
+    if (this.skillActive > 0) {
+      this.skillActive -= dt;
+      if (this.skillActive <= 0) {
+        this.shieldActive = false;
+        this.invisibleActive = false;
+        this.chargeActive = false;
+      }
+    }
+  }
+  render(ctx) {
+    if (this.invisibleActive && this.skillActive > 0) {
+      ctx.globalAlpha = 0.25 + Math.sin(Date.now()*0.02) * 0.1;
+    }
+    const cfg = this.config;
+    const cx = this.x, cy = this.y;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(this.angle);
+
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    ctx.fillRect(-this.width/2+3, -this.height/2+5, this.width, this.height);
+
+    // 履带
+    ctx.fillStyle = cfg.trackColor;
+    ctx.fillRect(-this.width/2, -this.height/2, 8, this.height);
+    ctx.fillRect(this.width/2 - 8, -this.height/2, 8, this.height);
+    // 履带花纹
+    ctx.fillStyle = '#000';
+    for (let i = 0; i < 4; i++) {
+      const y = -this.height/2 + 4 + i * 9 + (this.trackOffset % 9);
+      if (y < this.height/2 - 4) {
+        ctx.fillRect(-this.width/2 + 1, y, 6, 2);
+        ctx.fillRect(this.width/2 - 7, y, 6, 2);
+      }
+    }
+
+    // 车身
+    const flash = this.hitFlash > 0;
+    ctx.fillStyle = flash ? '#ffffff' : cfg.color;
+    ctx.fillRect(-this.width/2 + 8, -this.height/2 + 4, this.width - 16, this.height - 8);
+    // 车身高光
+    if (!flash) {
+      ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      ctx.fillRect(-this.width/2 + 8, -this.height/2 + 4, this.width - 16, 4);
+      ctx.fillStyle = 'rgba(0,0,0,0.25)';
+      ctx.fillRect(-this.width/2 + 8, this.height/2 - 8, this.width - 16, 4);
+    }
+
+    // 炮塔（圆形方块）
+    const tsize = 18;
+    ctx.fillStyle = flash ? '#ffffff' : (this._shade(cfg.color, -20));
+    ctx.fillRect(-tsize/2, -tsize/2, tsize, tsize);
+    // 炮管
+    ctx.fillStyle = flash ? '#ffffff' : '#222';
+    ctx.fillRect(0, -3, this.width/2 + 6, 6);
+    // 炮管口
+    ctx.fillStyle = flash ? '#ffffff' : '#ffcc44';
+    ctx.fillRect(this.width/2 + 2, -4, 6, 8);
+
+    ctx.restore();
+
+    // 护盾效果
+    if (this.shieldActive && this.skillActive > 0) {
+      ctx.strokeStyle = `rgba(100,200,255,${0.5 + Math.sin(Date.now()*0.01)*0.3})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 26, 0, Math.PI*2);
+      ctx.stroke();
+      ctx.lineWidth = 1;
+    }
+
+    // 冲锋拖尾
+    if (this.chargeActive) {
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = '#ffaa00';
+      const bx = cx - Math.cos(this.angle) * 18;
+      const by = cy - Math.sin(this.angle) * 18;
+      ctx.fillRect(bx-4, by-4, 8, 8);
+      ctx.globalAlpha = 1;
+    }
+
+    // 血条
+    if (!this.isPlayer) {
+      const bw = 32, bh = 4;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(cx-bw/2-1, cy-this.height/2-10, bw+2, bh+2);
+      ctx.fillStyle = '#440000';
+      ctx.fillRect(cx-bw/2, cy-this.height/2-9, bw, bh);
+      ctx.fillStyle = '#ff3333';
+      ctx.fillRect(cx-bw/2, cy-this.height/2-9, bw * (this.hp/this.maxHp), bh);
+    } else {
+      // 玩家血条在HUD
+    }
+
+    ctx.globalAlpha = 1;
+  }
+  _shade(hex, percent) {
+    const n = parseInt(hex.slice(1),16);
+    let r = (n>>16) + percent, g = ((n>>8)&0xff) + percent, b = (n&0xff) + percent;
+    r = Math.max(0,Math.min(255,r)); g = Math.max(0,Math.min(255,g)); b = Math.max(0,Math.min(255,b));
+    return '#' + ((r<<16)|(g<<8)|b).toString(16).padStart(6,'0');
+  }
+}
+
+// ============================================================
+// 敌人 AI
+// ============================================================
+class EnemyTank extends Tank {
+  constructor(x, y, typeId) {
+    super(x, y, typeId, false, 'enemy');
+    this.thinkTimer = 0;
+    this.moveDir = { up: false, down: false, left: false, right: false };
+    this.fireTimer = 0.5 + Math.random();
+    this.wanderAngle = Math.random() * Math.PI * 2;
+  }
+  update(dt, map, tanks, bullets, player) {
+    super.update(dt, map, tanks, bullets);
+    this.thinkTimer -= dt;
+    this.fireTimer -= dt;
+
+    if (this.thinkTimer <= 0) {
+      this.thinkTimer = 0.4 + Math.random() * 0.6;
+      this.decide(player, map, tanks, bullets);
+    }
+
+    this.move(this.moveDir, dt, map, tanks);
+
+    if (this.fireTimer <= 0) {
+      this.fireTimer = this.fireRate * (0.8 + Math.random() * 0.6);
+      // 视野检测
+      if (player && !player.dead) {
+        const dx = player.x - this.x, dy = player.y - this.y;
+        const dist = Math.hypot(dx, dy);
+        const targetAngle = Math.atan2(dy, dx);
+        const angleDiff = Math.abs(this._normalizeAngle(targetAngle - this.angle));
+        if (dist < 380 && angleDiff < 0.35) {
+          this.fire(bullets);
+        }
+      }
+    }
+  }
+  decide(player, map, tanks, bullets) {
+    if (!player || player.dead) {
+      // 随机游荡
+      if (Math.random() < 0.3) {
+        this.wanderAngle = Math.random() * Math.PI * 2;
+      }
+      this._setDirByAngle(this.wanderAngle);
+      return;
+    }
+    const dx = player.x - this.x, dy = player.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    const targetAngle = Math.atan2(dy, dx);
+
+    // elite 躲避子弹
+    if (this.typeId === 'elite') {
+      // 简化：70%追击
+    }
+
+    // 追击为主，偶尔侧移
+    const r = Math.random();
+    if (dist < 180 && r < 0.25 && this.typeId !== 'heavy') {
+      // 后撤/侧向
+      const evade = targetAngle + Math.PI + (Math.random() < 0.5 ? -1 : 1) * Math.PI/2;
+      this._setDirByAngle(evade);
+    } else if (r < 0.85) {
+      // 追击
+      this._setDirByAngle(targetAngle);
+    } else {
+      this._setDirByAngle(Math.random() * Math.PI * 2);
+    }
+  }
+  _setDirByAngle(a) {
+    this.moveDir = { up: false, down: false, left: false, right: false };
+    const ca = Math.cos(a), sa = Math.sin(a);
+    if (Math.abs(ca) > Math.abs(sa)) {
+      if (ca > 0) this.moveDir.right = true; else this.moveDir.left = true;
+    } else {
+      if (sa > 0) this.moveDir.down = true; else this.moveDir.up = true;
+    }
+  }
+  _normalizeAngle(a) {
+    while (a > Math.PI) a -= Math.PI*2;
+    while (a < -Math.PI) a += Math.PI*2;
+    return a;
+  }
+}
+
+// ============================================================
+// Boss
+// ============================================================
+class Boss {
+  constructor() {
+    this.x = CONFIG.CANVAS_W / 2;
+    this.y = 120;
+    this.maxHp = 2500;
+    this.hp = this.maxHp;
+    this.phase = 1;
+    this.width = 120;
+    this.height = 100;
+    this.fireTimer = 1.5;
+    this.patternTimer = 0;
+    this.moveAngle = 0;
+    this.dead = false;
+    this.hitFlash = 0;
+    this.name = '钢铁洪流·旗舰';
+  }
+  get box() { return { x: this.x-this.width/2, y: this.y-this.height/2, w: this.width, h: this.height }; }
+  update(dt, map, bullets, players) {
+    this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.patternTimer -= dt;
+    this.fireTimer -= dt;
+
+    // 阶段判定
+    const pct = this.hp / this.maxHp;
+    if (pct < 0.4 && this.phase < 3) this.phase = 3;
+    else if (pct < 0.7 && this.phase < 2) this.phase = 2;
+
+    // 移动（缓慢左右）
+    this.moveAngle += dt * (0.6 + this.phase * 0.3);
+    this.x = CONFIG.CANVAS_W/2 + Math.sin(this.moveAngle) * 280;
+    this.y = 120 + Math.sin(this.moveAngle * 1.3) * 40;
+    // 边界
+    this.x = Math.max(120, Math.min(CONFIG.CANVAS_W-120, this.x));
+
+    // 攻击模式
+    if (this.fireTimer <= 0) {
+      this.fireTimer = this.phase === 1 ? 1.1 : this.phase === 2 ? 0.8 : 0.55;
+      this.attackPattern(bullets, players);
+    }
+
+    // 召唤小怪（阶段2+）
+    if (this.phase >= 2 && this.patternTimer <= 0) {
+      this.patternTimer = 8;
+      if (Math.random() < 0.6) {
+        EventBus.emit('bossSpawnMinion');
+      }
+    }
+  }
+  attackPattern(bullets, players) {
+    const target = (players && players[0]) || { x: CONFIG.CANVAS_W/2, y: CONFIG.CANVAS_H*0.7 };
+    const patterns = this.phase === 1 ? 2 : this.phase === 2 ? 3 : 4;
+    const pick = Math.floor(Math.random() * patterns);
+    switch (pick) {
+      case 0: {
+        // 8方向弹幕
+        const n = this.phase === 1 ? 8 : this.phase === 2 ? 12 : 16;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2;
+          bullets.push(new Bullet(this.x, this.y + 30, a, 220, 14, 'enemy'));
+        }
+        break;
+      }
+      case 1: {
+        // 追踪三连
+        const ta = Math.atan2(target.y - this.y, target.x - this.x);
+        for (let i = -1; i <= 1; i++) {
+          bullets.push(new Bullet(this.x, this.y+30, ta + i*0.18, 360, 18, 'enemy'));
+        }
+        break;
+      }
+      case 2: {
+        // 扇形扩散
+        const ta = Math.atan2(target.y - this.y, target.x - this.x);
+        for (let i = 0; i < 7; i++) {
+          bullets.push(new Bullet(this.x, this.y+30, ta - 0.5 + (i/6)*1.0, 280, 14, 'enemy'));
+        }
+        break;
+      }
+      case 3: {
+        // 螺旋弹幕
+        const base = this.moveAngle * 3;
+        for (let i = 0; i < 3; i++) {
+          const a = base + i * Math.PI * 2 / 3;
+          bullets.push(new Bullet(this.x, this.y+30, a, 260, 14, 'enemy'));
+        }
+        break;
+      }
+    }
+  }
+  takeDamage(amt) {
+    this.hp -= amt;
+    this.hitFlash = 0.1;
+    if (this.hp <= 0) {
+      this.hp = 0;
+      this.dead = true;
+      // 爆炸链
+      for (let i = 0; i < 6; i++) {
+        setTimeout(() => {
+          Game.particles.explosion(
+            this.x + (Math.random()-0.5)*this.width,
+            this.y + (Math.random()-0.5)*this.height,
+            '#ffaa22', 30, 1.8
+          );
+          Game.cameraShake.trigger(10);
+        }, i * 100);
+      }
+      setTimeout(() => Game.cameraShake.trigger(24), 600);
+      EventBus.emit('bossDefeated');
+    }
+  }
+  render(ctx) {
+    const cx = this.x, cy = this.y;
+    const flash = this.hitFlash > 0;
+
+    // 阴影
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(cx-this.width/2+6, cy-this.height/2+10, this.width, this.height);
+
+    // 主体（体素风格巨型）
+    const bodyCol = flash ? '#ffffff' : (this.phase === 3 ? '#dd3322' : this.phase === 2 ? '#cc5533' : '#884422');
+    // 履带
+    ctx.fillStyle = '#221111';
+    ctx.fillRect(cx-this.width/2, cy-this.height/2+10, 20, this.height-10);
+    ctx.fillRect(cx+this.width/2-20, cy-this.height/2+10, 20, this.height-10);
+    // 车身
+    ctx.fillStyle = bodyCol;
+    ctx.fillRect(cx-this.width/2+18, cy-this.height/2+16, this.width-36, this.height-26);
+    // 高光
+    if (!flash) {
+      ctx.fillStyle = 'rgba(255,255,255,0.15)';
+      ctx.fillRect(cx-this.width/2+18, cy-this.height/2+16, this.width-36, 8);
+    }
+    // 装饰块
+    ctx.fillStyle = flash ? '#ffffff' : '#442211';
+    ctx.fillRect(cx-30, cy-this.height/2+8, 16, 16);
+    ctx.fillRect(cx+14, cy-this.height/2+8, 16, 16);
+
+    // 主炮塔
+    const tsize = 50;
+    ctx.fillStyle = flash ? '#ffffff' : (this.phase === 3 ? '#ff5544' : '#663311');
+    ctx.fillRect(cx-tsize/2, cy-tsize/2-8, tsize, tsize);
+    // 双炮管
+    ctx.fillStyle = flash ? '#ffffff' : '#1a1a1a';
+    ctx.fillRect(cx-40, cy-8, 58, 8);
+    ctx.fillRect(cx-40, cy+2, 58, 8);
+    // 炮管口
+    ctx.fillStyle = flash ? '#ffffff' : (this.phase >= 2 ? '#ff4422' : '#ffaa00');
+    ctx.fillRect(cx+16, cy-10, 8, 12);
+    ctx.fillRect(cx+16, cy, 8, 12);
+
+    // 核心指示灯
+    ctx.fillStyle = this.phase === 3 ? (Math.sin(Date.now()*0.02)*0.5+0.5) > 0.5 ? '#ff2222' : '#ffee00' : '#ffaa00';
+    ctx.fillRect(cx-6, cy-6, 12, 12);
+  }
+}
+
+// ============================================================
+// 品牌文字图层（底图字样填充升级）
+// ============================================================
+const BrandTextLayer = {
+  text: '钢铁洪流',
+  fillRatio: 0,
+  stageLevel: 1,
+  offscreen: null,
+  offCtx: null,
+  sparkTimer: 0,
+  sparks: [],
+  init() {
+    this.offscreen = document.createElement('canvas');
+    this.offscreen.width = CONFIG.CANVAS_W;
+    this.offscreen.height = CONFIG.CANVAS_H;
+    this.offCtx = this.offscreen.getContext('2d');
+    this._renderFullText();
+  },
+  _renderFullText() {
+    const ctx = this.offCtx;
+    ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
+    ctx.save();
+    ctx.font = 'bold 120px "Microsoft YaHei", "PingFang SC", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    const cx = CONFIG.CANVAS_W/2;
+    const cy = CONFIG.CANVAS_H/2;
+    // 渐变填充
+    const grad = ctx.createLinearGradient(0, cy-80, 0, cy+80);
+    grad.addColorStop(0, '#5588ff');
+    grad.addColorStop(0.5, '#66ddff');
+    grad.addColorStop(1, '#aa66ff');
+    ctx.fillStyle = grad;
+    ctx.fillText(this.text, cx, cy);
+    ctx.restore();
+  },
+  setStage(stage) {
+    this.stageLevel = stage;
+    if (stage === 2) this._renderFullTextGradient('#ffdd66', '#ff7722', '#ff3355');
+    if (stage === 3) this._renderFullTextGradient('#88ff88', '#ffdd44', '#ff7722');
+    if (stage === 4) this._renderFullTextGradient('#ffcc44', '#ff6622', '#dd2222');
+  },
+  _renderFullTextGradient(c1, c2, c3) {
+    const ctx = this.offCtx;
+    ctx.clearRect(0, 0, this.offscreen.width, this.offscreen.height);
+    ctx.save();
+    ctx.font = 'bold 120px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cx = CONFIG.CANVAS_W/2, cy = CONFIG.CANVAS_H/2;
+    const grad = ctx.createLinearGradient(0, cy-80, 0, cy+80);
+    grad.addColorStop(0, c1); grad.addColorStop(0.5, c2); grad.addColorStop(1, c3);
+    ctx.fillStyle = grad;
+    ctx.fillText(this.text, cx, cy);
+    ctx.restore();
+  },
+  update(dt, isBoss) {
+    this.sparkTimer -= dt;
+    if (this.stageLevel >= 4 && this.sparkTimer <= 0) {
+      this.sparkTimer = 0.05;
+      // 随机火花
+    }
+  },
+  render(ctx, isBoss) {
+    const cx = CONFIG.CANVAS_W/2, cy = CONFIG.CANVAS_H/2;
+    const txt = this.text;
+    ctx.save();
+    ctx.font = 'bold 120px "Microsoft YaHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+
+    // 描边（空心）
+    const strokeCol = isBoss
+      ? ((Math.floor(Date.now()/180) % 2 === 0) ? '#ffcc00' : '#ff2222')
+      : (this.stageLevel === 1 ? 'rgba(120,160,255,0.55)' :
+         this.stageLevel === 2 ? 'rgba(255,180,80,0.75)' :
+         this.stageLevel === 3 ? 'rgba(255,140,80,0.85)' :
+         'rgba(255,80,40,0.9)');
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = this.stageLevel >= 4 ? 3 : 2;
+    const pulse = this.stageLevel >= 2 ? (0.85 + Math.sin(Date.now()*0.003) * 0.15) : 1;
+    ctx.globalAlpha = pulse;
+    ctx.strokeText(txt, cx, cy);
+    ctx.globalAlpha = 1;
+
+    // 填充（裁剪）
+    if (this.fillRatio > 0) {
+      ctx.save();
+      const clipW = CONFIG.CANVAS_W * this.fillRatio;
+      ctx.beginPath();
+      ctx.rect(0, 0, clipW, CONFIG.CANVAS_H);
+      ctx.clip();
+      const alpha = 0.18 + (this.stageLevel-1) * 0.04;
+      ctx.globalAlpha = Math.min(0.35, alpha);
+      // 使用离屏canvas预渲染
+      ctx.drawImage(this.offscreen, 0, 0);
+
+      // 阶段3+能量流动扫描线
+      if (this.stageLevel >= 3) {
+        const sx = (Date.now() * 0.2) % CONFIG.CANVAS_W;
+        const scanGrad = ctx.createLinearGradient(sx-60, 0, sx+60, 0);
+        scanGrad.addColorStop(0, 'rgba(255,255,255,0)');
+        scanGrad.addColorStop(0.5, 'rgba(255,255,255,0.25)');
+        scanGrad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.globalAlpha = 0.5;
+        ctx.fillStyle = scanGrad;
+        ctx.fillRect(sx-60, 0, 120, CONFIG.CANVAS_H);
+      }
+      ctx.restore();
+    }
+
+    // Boss阶段警示闪烁
+    if (isBoss) {
+      ctx.globalAlpha = 0.3 + Math.sin(Date.now()*0.01) * 0.2;
+      ctx.strokeStyle = '#ff2222';
+      ctx.lineWidth = 6;
+      ctx.strokeText(txt, cx, cy);
+    }
+
+    ctx.restore();
+  }
+};
+
+// ============================================================
+// 生成关卡地图（地形完全随机，每局不同）
+// ============================================================
+function generateMap() {
+  const map = [];
+  for (let y = 0; y < CONFIG.MAP_H; y++) {
+    map[y] = [];
+    for (let x = 0; x < CONFIG.MAP_W; x++) map[y][x] = TILE_TYPES.EMPTY;
+  }
+  // 边界（钢墙）
+  for (let x = 0; x < CONFIG.MAP_W; x++) { map[0][x] = TILE_TYPES.STEEL; map[CONFIG.MAP_H-1][x] = TILE_TYPES.STEEL; }
+  for (let y = 0; y < CONFIG.MAP_H; y++) { map[y][0] = TILE_TYPES.STEEL; map[y][CONFIG.MAP_W-1] = TILE_TYPES.STEEL; }
+
+  // —— 随机地形（每局不同）：随机砖墙集群 + 散布钢块/水面/草丛 ——
+  const inProtectedZone = (x, y) =>
+    (x <= 4 && y >= CONFIG.MAP_H-5) || (x >= CONFIG.MAP_W-5 && y >= CONFIG.MAP_H-5) || // 玩家出生区
+    (y <= 4 && x >= 6 && x <= CONFIG.MAP_W-7) || // Boss出场区顶部
+    (y <= 2 && (x <= 2 || (x >= 11 && x <= 13) || x >= 21)); // 敌人出生区（左右上角+顶部中央）
+  const setTile = (x, y, t) => {
+    if (x < 2 || y < 2 || x > CONFIG.MAP_W-3 || y > CONFIG.MAP_H-3) return;
+    if (inProtectedZone(x, y)) return;
+    if (map[y][x] === TILE_TYPES.EMPTY) map[y][x] = t;
+  };
+  // 随机砖墙集群（横/纵短墙，偶尔拐角）
+  const wallCount = 8 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < wallCount; i++) {
+    const horiz = Math.random() < 0.5;
+    const len = 2 + Math.floor(Math.random() * 5);
+    let x = 2 + Math.floor(Math.random() * (CONFIG.MAP_W - 4));
+    let y = 2 + Math.floor(Math.random() * (CONFIG.MAP_H - 4));
+    for (let j = 0; j < len; j++) {
+      setTile(x, y, TILE_TYPES.BRICK);
+      if (Math.random() < 0.18) setTile(x + (horiz ? 0 : 1), y + (horiz ? 1 : 0), TILE_TYPES.BRICK);
+      horiz ? x++ : y++;
+    }
+  }
+  // 散布钢块/水面/草丛（低密度点缀）
+  for (let y = 2; y < CONFIG.MAP_H-2; y++) {
+    for (let x = 2; x < CONFIG.MAP_W-2; x++) {
+      if (map[y][x] !== TILE_TYPES.EMPTY || inProtectedZone(x, y)) continue;
+      const r = Math.random();
+      if (r < 0.045) map[y][x] = TILE_TYPES.STEEL;
+      else if (r < 0.075) map[y][x] = TILE_TYPES.WATER;
+      else if (r < 0.115) map[y][x] = TILE_TYPES.BUSH;
+    }
+  }
+
+  // 【出生区域清理·与玩家相同原则】：底部3行大范围清除障碍（保证单人/双人/PVP各模式出生点均无阻挡）
+  for (let y = CONFIG.MAP_H - 4; y <= CONFIG.MAP_H - 2; y++) {
+    for (let x = 2; x <= CONFIG.MAP_W - 3; x++) {
+      const t = map[y][x];
+      if (t !== TILE_TYPES.STEEL || (y !== 0 && y !== CONFIG.MAP_H-1 && x !== 0 && x !== CONFIG.MAP_W-1)) {
+        // 非边界钢墙的其他障碍全部清除
+        if (t === TILE_TYPES.BRICK || t === TILE_TYPES.WATER || t === TILE_TYPES.BUSH) {
+          map[y][x] = TILE_TYPES.EMPTY;
+        }
+        // 内部钢墙也清（边界外圈钢墙保留）
+        if (t === TILE_TYPES.STEEL && y > 0 && y < CONFIG.MAP_H-1 && x > 0 && x < CONFIG.MAP_W-1) {
+          map[y][x] = TILE_TYPES.EMPTY;
+        }
+      }
+    }
+  }
+
+  // 【敌人出生区清理】：顶部三个刷新点区域清障（与玩家出生原则相同，保证敌人不被地形卡死）
+  const enemySpawnCols = [[1, 2], [11, 13], [21, 22]];
+  for (let y = 1; y <= 2; y++) {
+    for (const [c0, c1] of enemySpawnCols) {
+      for (let x = c0; x <= c1; x++) {
+        if (x <= 0 || x >= CONFIG.MAP_W-1) continue;
+        map[y][x] = TILE_TYPES.EMPTY;
+      }
+    }
+  }
+
+  // 砖块血量记录
+  const tileHp = [];
+  for (let y = 0; y < CONFIG.MAP_H; y++) {
+    tileHp[y] = [];
+    for (let x = 0; x < CONFIG.MAP_W; x++) tileHp[y][x] = map[y][x] === TILE_TYPES.BRICK ? 2 : 0;
+  }
+  return { tiles: map, tileHp };
+}
+
+// ============================================================
+// 地形渲染
+// ============================================================
+function renderTile(ctx, type, x, y, hp) {
+  const px = x * CONFIG.TILE;
+  const py = y * CONFIG.TILE;
+  const S = CONFIG.TILE;
+  switch (type) {
+    case TILE_TYPES.BRICK: {
+      // 我的世界红砖块
+      ctx.fillStyle = '#662211';
+      ctx.fillRect(px, py, S, S);
+      // 损坏
+      const dmg = hp <= 1 ? 0.35 : 1;
+      const bricks = [
+        [2, 2, 16, 8], [22, 2, 16, 8],
+        [2, 16, 10, 8], [14, 16, 12, 8], [28, 16, 10, 8],
+        [2, 30, 16, 8], [22, 30, 16, 8]
+      ];
+      ctx.fillStyle = `rgba(190,80,50,${dmg})`;
+      for (const b of bricks) ctx.fillRect(px+b[0], py+b[1], b[2], b[3]);
+      ctx.fillStyle = `rgba(100,40,30,${dmg})`;
+      ctx.fillRect(px, py+1, S, 1); ctx.fillRect(px, py+15, S, 1); ctx.fillRect(px, py+29, S, 1);
+      ctx.fillRect(px+18, py+1, 1, 14); ctx.fillRect(px+12, py+15, 1, 14); ctx.fillRect(px+26, py+15, 1, 14); ctx.fillRect(px+18, py+29, 1, 9);
+      if (hp <= 1) {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(px+4, py+6, 6, 3); ctx.fillRect(px+20, py+22, 10, 3);
+      }
+      break;
+    }
+    case TILE_TYPES.STEEL: {
+      // 铁块
+      ctx.fillStyle = '#555e6a';
+      ctx.fillRect(px, py, S, S);
+      ctx.fillStyle = '#828e9e';
+      ctx.fillRect(px+2, py+2, S-4, S-4);
+      ctx.fillStyle = '#a4b0c0';
+      ctx.fillRect(px+4, py+4, S-8, 6); ctx.fillRect(px+4, py+4, 6, S-8);
+      ctx.fillStyle = '#3a4250';
+      ctx.fillRect(px+S-10, py+S-10, 6, 6);
+      // 铆钉
+      ctx.fillStyle = '#2a3038';
+      ctx.fillRect(px+5, py+5, 3, 3); ctx.fillRect(px+S-8, py+5, 3, 3);
+      ctx.fillRect(px+5, py+S-8, 3, 3); ctx.fillRect(px+S-8, py+S-8, 3, 3);
+      break;
+    }
+    case TILE_TYPES.WATER: {
+      // 动态水面
+      const t = Date.now() * 0.001;
+      ctx.fillStyle = '#1a4a88';
+      ctx.fillRect(px, py, S, S);
+      ctx.fillStyle = '#2a6abb';
+      ctx.fillRect(px+2, py+2, S-4, S-4);
+      ctx.fillStyle = '#4a9add';
+      const off = Math.floor(Math.sin(t + x + y) * 2);
+      ctx.fillRect(px+4+off, py+6, 10, 2);
+      ctx.fillRect(px+18-off, py+18, 14, 2);
+      ctx.fillRect(px+6+off, py+30, 12, 2);
+      ctx.fillStyle = 'rgba(180,220,255,0.4)';
+      ctx.fillRect(px+6-off, py+10, 6, 1);
+      ctx.fillRect(px+22+off, py+24, 6, 1);
+      break;
+    }
+    case TILE_TYPES.BUSH: {
+      ctx.fillStyle = '#1a3a1a';
+      ctx.fillRect(px, py, S, S);
+      ctx.fillStyle = '#2a6a2a';
+      ctx.fillRect(px+2, py+2, S-4, S-4);
+      ctx.fillStyle = '#4aaa4a';
+      for (let i = 0; i < 9; i++) {
+        const bx = px + 3 + (i%3)*11;
+        const by = py + 3 + Math.floor(i/3)*11;
+        ctx.fillRect(bx, by, 8, 8);
+      }
+      ctx.fillStyle = '#77dd77';
+      ctx.fillRect(px+4, py+4, 3, 3); ctx.fillRect(px+18, py+8, 3, 3);
+      ctx.fillRect(px+28, py+20, 3, 3); ctx.fillRect(px+10, py+26, 3, 3);
+      break;
+    }
+    case TILE_TYPES.BASE: {
+      ctx.fillStyle = '#ffcc00';
+      ctx.fillRect(px, py, S, S);
+      ctx.fillStyle = '#aa7700';
+      ctx.fillRect(px+4, py+4, S-8, S-8);
+      break;
+    }
+    default: break;
+  }
+}
+
+// ============================================================
+// HUD 渲染
+// ============================================================
+function renderHUD(ctx, game) {
+  // 顶部分区：玩家状态、Stage、积分
+  const W = CONFIG.CANVAS_W;
+
+  // Stage 提示
+  ctx.save();
+  ctx.font = 'bold 14px monospace';
+  ctx.textAlign = 'center';
+  const stageTxt = game.isBossMode ? '⚠ BOSS 战 ⚠' : `STAGE ${game.stage.id}`;
+  const stageCol = game.isBossMode ? '#ff3344' : (game.stage.id >= 4 ? '#ffaa22' : game.stage.id >= 3 ? '#ff7722' : game.stage.id >= 2 ? '#66ccff' : '#aaffaa');
+  ctx.fillStyle = stageCol;
+  ctx.shadowColor = stageCol;
+  ctx.shadowBlur = 10;
+  ctx.fillText(stageTxt, W/2, 24);
+  ctx.shadowBlur = 0;
+  // 积分
+  ctx.font = 'bold 18px monospace';
+  ctx.fillStyle = '#ffd60a';
+  ctx.textAlign = 'right';
+  ctx.fillText(`分数: ${game.score}`, W - 16, 24);
+  // 进度条（到Boss）
+  if (!game.isBossMode) {
+    const pct = Math.min(1, game.score / CONFIG.BOSS_THRESHOLD);
+    const barW = 180, barX = W - barW - 16, barY = 34;
+    ctx.fillStyle = '#222';
+    ctx.fillRect(barX, barY, barW, 6);
+    const g = ctx.createLinearGradient(barX, 0, barX+barW, 0);
+    g.addColorStop(0, '#44dd77'); g.addColorStop(0.6, '#ffdd44'); g.addColorStop(1, '#ff4444');
+    ctx.fillStyle = g;
+    ctx.fillRect(barX, barY, barW * pct, 6);
+    ctx.strokeStyle = '#4a4a8a'; ctx.lineWidth = 1;
+    ctx.strokeRect(barX, barY, barW, 6);
+  }
+  ctx.restore();
+
+  // ========== 玩家HUD（左上 P1 / 右上 P2）MC风格红心+技能充能 ==========
+  const players = game.players;
+  // 辅助函数：画一颗MC风格心（x,y是左上角，size是整颗心尺寸）
+  const drawHeart = (ctx, x, y, size, fillPercent) => {
+    const s = size / 9; // 9x9 像素网格
+    // fillPercent: 0=全空(灰轮廓), 0.5=半心(左半红), 1=全红
+    // 先画灰色空心底
+    ctx.fillStyle = fillPercent > 0 ? 'rgba(0,0,0,0.5)' : '#555555';
+    // 心形像素矩阵（9x9）1=填充
+    const pat = [
+      [0,1,1,0,0,0,1,1,0],
+      [1,1,1,1,0,1,1,1,1],
+      [1,1,1,1,1,1,1,1,1],
+      [1,1,1,1,1,1,1,1,1],
+      [0,1,1,1,1,1,1,1,0],
+      [0,0,1,1,1,1,1,0,0],
+      [0,0,0,1,1,1,0,0,0],
+      [0,0,0,0,1,0,0,0,0],
+      [0,0,0,0,0,0,0,0,0],
+    ];
+    // 底色（空心灰）
+    for (let py = 0; py < 9; py++) {
+      for (let px = 0; px < 9; px++) {
+        if (pat[py][px]) ctx.fillRect(x + px*s, y + py*s, s+0.5, s+0.5);
+      }
+    }
+    if (fillPercent > 0) {
+      // 分两半：左半满 or 全满
+      const midX = fillPercent >= 1 ? 9 : 5; // 半心只画左边4列+中间1列左半
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, size * (fillPercent >= 1 ? 1 : 0.52), size);
+      ctx.clip();
+      // 红色填充
+      ctx.fillStyle = '#e63329';
+      for (let py = 0; py < 9; py++) {
+        for (let px = 0; px < 9; px++) {
+          if (pat[py][px]) ctx.fillRect(x + px*s, y + py*s, s+0.5, s+0.5);
+        }
+      }
+      // 左上高光（MC风格心形高光）
+      ctx.fillStyle = '#ff8877';
+      ctx.fillRect(x + 1*s, y + 1*s, s+0.5, s+0.5);
+      ctx.fillRect(x + 2*s, y + 1*s, s+0.5, s+0.5);
+      ctx.fillRect(x + 5*s, y + 1*s, s+0.5, s+0.5);
+      ctx.fillRect(x + 6*s, y + 1*s, s+0.5, s+0.5);
+      ctx.fillStyle = '#ffbb55';
+      ctx.fillRect(x + 2*s, y + 2*s, s+0.5, s+0.5);
+      ctx.restore();
+      // 右下深红阴影（仅满心时）
+      if (fillPercent >= 1) {
+        ctx.fillStyle = '#991111';
+        ctx.fillRect(x + 7*s, y + 3*s, s+0.5, s+0.5);
+        ctx.fillRect(x + 6*s, y + 4*s, s+0.5, s+0.5);
+        ctx.fillRect(x + 7*s, y + 4*s, s+0.5, s+0.5);
+        ctx.fillRect(x + 3*s, y + 6*s, s+0.5, s+0.5);
+        ctx.fillRect(x + 5*s, y + 6*s, s+0.5, s+0.5);
+        ctx.fillRect(x + 4*s, y + 7*s, s+0.5, s+0.5);
+      }
+    } else {
+      // 空心黑边+灰色填
+      ctx.strokeStyle = '#222';
+      ctx.lineWidth = 1;
+    }
+  };
+
+  for (let i = 0; i < players.length; i++) {
+    const p = players[i];
+    if (p.dead) continue;
+    const isLeft = i === 0 || players.length === 1; // P1=左上, P2=右上
+    const playerLabel = players.length === 1 ? 'P1' : (p.playerTag === 'p2' ? 'P2' : 'P1');
+    const pColor = playerLabel === 'P2' ? '#ff7788' : '#77bbff';
+
+    // 布局尺寸
+    const heartSize = 18;
+    const heartGap = 3;
+    const HP_PER_HEART = 20;
+    const maxHearts = Math.min(12, Math.ceil(p.maxHp / HP_PER_HEART));
+    const totalHeartRowW = maxHearts * (heartSize + heartGap);
+
+    const HUD_W = Math.max(totalHeartRowW + 80, 220);
+    const HUD_H = 58;
+    const baseX = isLeft ? 16 : W - HUD_W - 16;
+    const baseY = 16;
+
+    // 背景板
+    ctx.fillStyle = 'rgba(8, 12, 28, 0.8)';
+    ctx.fillRect(baseX - 4, baseY - 4, HUD_W, HUD_H);
+    ctx.strokeStyle = pColor;
+    ctx.lineWidth = 2;
+    ctx.strokeRect(baseX - 4, baseY - 4, HUD_W, HUD_H);
+
+    // 玩家标签+HP数字（右上或左上）
+    ctx.fillStyle = pColor;
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = isLeft ? 'left' : 'right';
+    const labelX = isLeft ? baseX : baseX + HUD_W - 8;
+    ctx.fillText(`▼ ${playerLabel} · ${TANK_TYPES[p.typeId].name}`, labelX, baseY + 10);
+    // HP数值
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px monospace';
+    const hpNumX = isLeft ? baseX + HUD_W - 10 : baseX + 2;
+    ctx.textAlign = isLeft ? 'right' : 'left';
+    ctx.fillText(`${Math.ceil(p.hp)} / ${p.maxHp}`, hpNumX, baseY + 10);
+
+    // ============ 红心血条 ============
+    // 计算每颗心填充程度
+    const hpPerDisplayHeart = p.maxHp / maxHearts; // 如果maxHp=220, maxHearts=12 => ~18.33/心（确保每颗心占相同视觉比例）
+    const heartsStartX = baseX + 4;
+    const heartsY = baseY + 18;
+    // 如果玩家是右对齐，心仍然从左向右画（统一阅读顺序），只是整个HUD在右侧
+    for (let h = 0; h < maxHearts; h++) {
+      const hx = heartsStartX + h * (heartSize + heartGap);
+      const heartMaxHp = hpPerDisplayHeart;
+      const heartHp = Math.max(0, Math.min(heartMaxHp, p.hp - h * heartMaxHp));
+      const fillPct = heartHp / heartMaxHp; // 0空 / 0~1半/1满
+      let drawPct = 0;
+      if (fillPct >= 0.95) drawPct = 1;
+      else if (fillPct > 0.05) drawPct = 0.5; // 简化为半心显示
+      else drawPct = 0;
+      drawHeart(ctx, hx, heartsY, heartSize, drawPct);
+    }
+
+    // ============ 技能充能条（击杀充满100可释放） ============
+    const chBarW = HUD_W - 8;
+    const chBarH = 10;
+    const chX = baseX;
+    const chY = baseY + 42;
+    const chargeRatio = Math.max(0, Math.min(1, p.skillCharge / 100));
+    const isFull = p.skillCharge >= 100;
+    const cells = 10;
+    const cellW = chBarW / cells;
+    const filledCells = Math.floor(chargeRatio * cells);
+
+    // 背景暗格
+    for (let c = 0; c < cells; c++) {
+      const cx = chX + c * cellW + 1;
+      const cw = cellW - 2;
+      ctx.fillStyle = c < filledCells ? (isFull ? '#ffd60a' : '#44cc66') : '#222233';
+      if (isFull && c < filledCells && (c + Math.floor(Date.now()/120)) % 2 === 0) {
+        ctx.fillStyle = '#ffee88'; // 满格闪烁
+      }
+      ctx.fillRect(cx, chY, cw, chBarH);
+    }
+    // 边框
+    ctx.strokeStyle = isFull ? '#ffdd44' : '#335566';
+    ctx.lineWidth = isFull ? 2 : 1;
+    ctx.shadowColor = isFull ? '#ffee44' : 'transparent';
+    ctx.shadowBlur = isFull ? 10 : 0;
+    ctx.strokeRect(chX, chY - 0.5, chBarW, chBarH + 1);
+    ctx.shadowBlur = 0;
+
+    // 充能文字/技能名 右侧小字
+    ctx.font = 'bold 9px monospace';
+    ctx.fillStyle = isFull ? '#ffee88' : '#88aacc';
+    ctx.textAlign = isLeft ? 'left' : 'right';
+    const keyTxt = playerLabel === 'P2' ? '按 [\\] 释放' : '按 [Q] 释放';
+    ctx.fillText(isFull ? `★ ${TANK_TYPES[p.typeId].skillName} ★ ${keyTxt}` : `充能 ${Math.floor(p.skillCharge)}% · ${TANK_TYPES[p.typeId].skillName}`, isLeft ? baseX : baseX + HUD_W - 8, chY + chBarH + 11);
+  }
+
+  // Boss 血条
+  if (game.boss && !game.boss.dead) {
+    const bx = W/2 - 300;
+    const by = 42;
+    const bw = 600, bh = 18;
+    ctx.fillStyle = '#1a0a0a';
+    ctx.fillRect(bx-2, by-2, bw+4, bh+4);
+    ctx.fillStyle = '#331111';
+    ctx.fillRect(bx, by, bw, bh);
+    const pct = game.boss.hp / game.boss.maxHp;
+    const g = ctx.createLinearGradient(bx, 0, bx+bw, 0);
+    g.addColorStop(0, '#ff8844'); g.addColorStop(0.5, '#ff2222'); g.addColorStop(1, '#ffaa00');
+    ctx.fillStyle = g;
+    ctx.fillRect(bx, by, bw * pct, bh);
+    ctx.strokeStyle = '#ff5522'; ctx.lineWidth = 2;
+    ctx.strokeRect(bx, by, bw, bh);
+    // Boss名
+    ctx.font = 'bold 14px monospace';
+    ctx.fillStyle = '#ff6644';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = '#ff2200'; ctx.shadowBlur = 10;
+    ctx.fillText(`◆ ${game.boss.name}  PHASE ${game.boss.phase} ◆`, W/2, by + bh + 18);
+    ctx.shadowBlur = 0;
+  }
+}
+
+// ============================================================
+// 成就系统
+// ============================================================
+const ACHIEVEMENTS = [
+  { id: 'first_blood', name: '初尝胜果', desc: '击毁第一辆敌方坦克', icon: '★', check: s => s.kills >= 1 },
+  { id: 'kill_100', name: '钢铁猎手', desc: '累计击毁100辆敌方坦克', icon: '⚔', check: s => s.totalKills >= 100 },
+  { id: 'score_5000', name: '战术指挥', desc: '单局积分达到5000', icon: '♦', check: s => s.maxScore >= 5000 },
+  { id: 'score_10000', name: '战场之王', desc: '单局积分达到10000', icon: '♚', check: s => s.maxScore >= 10000 },
+  { id: 'boss_victory', name: '旗舰粉碎', desc: '击败Boss', icon: '✪', check: s => s.bossKills >= 1 },
+  { id: 'boss_no_damage', name: '完美指挥官', desc: '无伤击败一次Boss', icon: '♛', check: s => s.bossNoDamage },
+  { id: 'brick_destroyer', name: '拆迁专家', desc: '单局摧毁50个砖墙', icon: '▣', check: s => s.bricksDestroyed >= 50 },
+  { id: 'pickup_collector', name: '后勤补给', desc: '单局拾取10个道具', icon: '✦', check: s => s.pickupsCollected >= 10 },
+  { id: 'coop_win', name: '钢铁同盟', desc: '双人协作击败Boss', icon: '⚘', check: s => s.coopWins >= 1 },
+  { id: 'pvp_win', name: '决斗大师', desc: '赢下一场双人PK', icon: '⚑', check: s => s.pvpWins >= 1 },
+];
+
+const AchievementTracker = {
+  PERM_KEY: 'tkdz_achievements_permanent',
+  stats: { kills: 0, totalKills: 0, maxScore: 0, bossKills: 0, bossNoDamage: false, bricksDestroyed: 0, pickupsCollected: 0, coopWins: 0, pvpWins: 0 },
+  unlocked: {},
+  // 页面首次加载：1)强制清空run状态  2)只加载"用户手动保存过"的永久成就（不读旧的临时save，确保每次打开重置）
+  freshInit() {
+    this.stats = { kills: 0, totalKills: 0, maxScore: 0, bossKills: 0, bossNoDamage: false, bricksDestroyed: 0, pickupsCollected: 0, coopWins: 0, pvpWins: 0 };
+    this.unlocked = {};
+    this._lastSavedToast = null;
+    try {
+      const perm = JSON.parse(localStorage.getItem(this.PERM_KEY) || '{}');
+      if (perm.unlocked && typeof perm.unlocked === 'object') {
+        this.unlocked = { ...perm.unlocked };
+      }
+      if (perm.stats && typeof perm.stats === 'object') {
+        // 永久成就的累计统计也保留（maxScore/bossKills/totalKills/胜场等"历史成就"）
+        this.stats.totalKills = perm.stats.totalKills || 0;
+        this.stats.maxScore = perm.stats.maxScore || 0;
+        this.stats.bossKills = perm.stats.bossKills || 0;
+        this.stats.coopWins = perm.stats.coopWins || 0;
+        this.stats.pvpWins = perm.stats.pvpWins || 0;
+      }
+    } catch(e) {}
+  },
+  // 旧load兼容（保留，不主动调用）
+  load() {
+    try {
+      const data = JSON.parse(localStorage.getItem('tkdz_achievements') || '{}');
+      this.unlocked = data.unlocked || {};
+      this.stats.totalKills = data.totalKills || 0;
+      this.stats.maxScore = data.maxScore || 0;
+      this.stats.bossKills = data.bossKills || 0;
+      this.stats.coopWins = data.coopWins || 0;
+      this.stats.pvpWins = data.pvpWins || 0;
+    } catch(e) {}
+  },
+  save() {
+    // 原save不做持久化（页面打开即重置）：仅更新内存+临时键，避免刷新保存
+    localStorage.setItem('tkdz_achievements', JSON.stringify({
+      unlocked: this.unlocked,
+      totalKills: this.stats.totalKills,
+      maxScore: this.stats.maxScore,
+      bossKills: this.stats.bossKills,
+      coopWins: this.stats.coopWins,
+      pvpWins: this.stats.pvpWins,
+    }));
+  },
+  // ====== 【手动保存永久成就】（暂停面板调用） ======
+  savePermanent() {
+    const snap = {
+      savedAt: Date.now(),
+      savedAtStr: new Date().toLocaleString('zh-CN'),
+      unlocked: { ...this.unlocked },
+      stats: {
+        totalKills: this.stats.totalKills || 0,
+        maxScore: this.stats.maxScore || 0,
+        bossKills: this.stats.bossKills || 0,
+        coopWins: this.stats.coopWins || 0,
+        pvpWins: this.stats.pvpWins || 0,
+      }
+    };
+    localStorage.setItem(this.PERM_KEY, JSON.stringify(snap));
+    // 把已保存的时间戳挂在对象上，便于教程或暂停面板显示
+    this._lastSavedAt = snap.savedAt;
+    this._lastSavedAtStr = snap.savedAtStr;
+    return snap;
+  },
+  resetRun() {
+    this.stats.kills = 0;
+    this.stats.bricksDestroyed = 0;
+    this.stats.pickupsCollected = 0;
+    this.stats.bossNoDamage = false;
+  },
+  check() {
+    for (const a of ACHIEVEMENTS) {
+      if (!this.unlocked[a.id] && a.check(this.stats)) {
+        this.unlock(a.id);
+      }
+    }
+  },
+  unlock(id) {
+    if (this.unlocked[id]) return;
+    this.unlocked[id] = { unlockedAt: Date.now() };
+    this.save(); // 内存写回临时键（下次打开仍会被重置，但对本次run有记录）
+    const ach = ACHIEVEMENTS.find(a => a.id === id);
+    if (ach) {
+      EventBus.emit('achievementUnlocked', ach);
+      Game.showAchievementToast(ach);
+    }
+  },
+  increment(prop, n = 1) {
+    this.stats[prop] = (this.stats[prop] || 0) + n;
+    if (prop === 'kills') this.stats.totalKills += n;
+    this.check();
+  }
+};
+
+// ============================================================
+// 新手引导（鱿鱼向导）
+// ============================================================
+const TutorialGuide = {
+  active: false,
+  mode: 'single',
+  step: 0,
+  steps: [],
+  // —— 单人闯关教程（7步：6步基础 + 1步保存成就） ——
+  stepsSingle: [
+    { title: '欢迎！', text: '指挥官你好！我是鱿鱼向导小墨～\n欢迎来到《钢铁洪流》坦克大战！', trigger: 'click', highlight: null },
+    { title: '操作方式', text: '【玩家1键位】\n移动：W A S D 键\n开火：J 键 / 空格键 / F\n技能：Q 键 或 E 键\n（方向键也可用于移动）',
+      textTouch: '【移动端操作】\n📱 左下虚拟摇杆：滑动控制方向\n🔥 右下开火键：按住持续射击\n⚡ 技能键：点按释放技能\n⏸ 右上角暂停键：打开暂停面板', trigger: 'move', highlight: 'player' },
+    { title: '地形说明', text: '🟫 砖墙可被摧毁\n⬜ 钢墙坚不可摧\n🟦 水面无法通过\n🌲 草丛可以藏身', trigger: 'click', highlight: 'map' },
+    { title: '随机地形', text: '注意看战场环境！\n砖墙集群、水域、草丛每局随机生成\n每次开战都是全新战场\n砖墙可破坏，打出属于你的路线！', trigger: 'click', highlight: 'ys' },
+    { title: '底图字样', text: '击败敌人获得积分\n可以点亮底图的「钢铁洪流」字样\n战斗越激烈，字样效果越炫酷！', trigger: 'click', highlight: 'brand' },
+    { title: '暂停·成就存档', text: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n按 ESC 或 P 键打开暂停面板\n→ 点击「💾 保存成就达成时间」按钮\n→ 你已解锁的成就会记录真实时间\n→ 关闭页面后重开，永久成就仍在展馆！\n（建议达到里程碑后立刻保存！）',
+      textTouch: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n点右上角 ⏸ 暂停键打开面板\n→ 点击「💾 保存成就达成时间」按钮\n→ 你已解锁的成就会记录真实时间\n→ 关闭页面后重开，永久成就仍在展馆！\n（建议达到里程碑后立刻保存！）', trigger: 'click', highlight: null },
+    { title: '准备开战', text: '击毁敌车赚取积分，积分达到8000时Boss登场！\n指挥官，战斗开始！\n\n—— 新人制作，产品简陋请见谅！——', trigger: 'click', highlight: null }
+  ],
+  // —— 双人协作教程（7步） ——
+  stepsCoop: [
+    { title: '双人协作 · 同盟出击！', text: '欢迎两位指挥官！\n请确认两台手柄（键盘）就位～\n鱿鱼向导小墨将指引你们并肩作战！',
+      textTouch: '欢迎两位指挥官！\n建议横屏游玩，左右分区操作～\n鱿鱼向导小墨将指引你们并肩作战！', trigger: 'click', highlight: null },
+    { title: '【P1】玩家1键位', text: '【蓝方·玩家1】\n移动：W A S D\n开火：J 键 / F 键（双人模式方向键仅P2可用）\n技能：Q 键 或 E 键\n（左手操作，建议坐在左侧）',
+      textTouch: '【蓝方·玩家1】\n📱 屏幕左侧虚拟摇杆：移动\n🔥 左侧开火键：按住射击\n⚡ 左侧技能键：点按释放\n（横屏左手操作左侧区域）', trigger: 'click', highlight: 'p1' },
+    { title: '【P2】玩家2键位', text: '【红方·玩家2】\n移动：↑ ↓ ← → 方向键\n开火：Enter / 右Ctrl / ? / 键\n技能：\\ 反斜杠 或 Shift 键\n（右手操作，建议坐在右侧）\n\n⚠ 注意：双人模式下方向键只控制P2！',
+      textTouch: '【红方·玩家2】\n📱 屏幕右侧虚拟摇杆：移动\n💥 右侧开火键：按住射击\n⚡ 右侧技能键：点按释放\n（横屏右手操作右侧区域）', trigger: 'click', highlight: 'p2' },
+    { title: '协作法则', text: '【共同目标】\n• 积分共享，击杀敌人双方都能充能\n• 一人倒下另一人可继续战斗，存活=胜利\n• 技能Q / \\ 互补，突击+重装推图最稳\n• 达到8000分，协力挑战BOSS！', trigger: 'click', highlight: null },
+    { title: '随机地形', text: '战场掩体每局随机生成\n每局开战前先观察地形分布\n善用地形，打出钢铁同盟的默契！', trigger: 'click', highlight: 'ys' },
+    { title: '暂停·成就存档', text: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n由任意一方按 ESC 或 P 键打开暂停面板\n→ 点击「💾 保存成就达成时间」按钮\n→ 两人共同的战绩会永久存档！\n（击败Boss前后记得保存～）',
+      textTouch: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n点右上角 ⏸ 暂停键打开面板\n→ 点击「💾 保存成就达成时间」按钮\n→ 两人共同的战绩会永久存档！\n（击败Boss前后记得保存～）', trigger: 'click', highlight: null },
+    { title: '准备并肩作战！', text: '胜负不再是一个人的事\n保护好你的战友，把后背交给彼此！\n指挥官们，战斗开始！\n\n—— 新人制作，产品简陋请见谅！——', trigger: 'click', highlight: null }
+  ],
+  // —— 双人对抗教程（7步） ——
+  stepsPvp: [
+    { title: '双人对抗 · 决斗场！', text: '欢迎两位指挥官来到决斗场！\n一决雌雄的时候到了～\n鱿鱼向导小墨将说明决斗规则！', trigger: 'click', highlight: null },
+    { title: '【P1】蓝方键位', text: '【蓝方·玩家1】\n移动：W A S D\n开火：J 键 / F 键（双人模式方向键仅P2可用）\n技能：Q 键 或 E 键\n（左手操作，出生在左下方）',
+      textTouch: '【蓝方·玩家1】\n📱 屏幕左侧虚拟摇杆：移动\n🔥 左侧开火键：按住射击\n⚡ 左侧技能键：点按释放\n（横屏左手操作，出生在左下方）', trigger: 'click', highlight: 'p1' },
+    { title: '【P2】红方键位', text: '【红方·玩家2】\n移动：↑ ↓ ← → 方向键\n开火：Enter / 右Ctrl / ? / 键\n技能：\\ 反斜杠 或 Shift 键\n（右手操作，出生在右下方）\n\n⚠ 注意：双人模式下方向键只控制P2！',
+      textTouch: '【红方·玩家2】\n📱 屏幕右侧虚拟摇杆：移动\n💥 右侧开火键：按住射击\n⚡ 右侧技能键：点按释放\n（横屏右手操作，出生在右下方）', trigger: 'click', highlight: 'p2' },
+    { title: '决斗规则', text: '【胜利条件】\n• 先击落对方 3 次者直接获胜\n• 击落=击杀+1，被击落=死亡+1\n• 期间会刷出AI敌人干扰，它们同样有威胁\n• 队友伤害已开启，子弹不会手下留情！', trigger: 'click', highlight: null },
+    { title: '地形+战术提示', text: '• 砖墙可被打破，开辟奇袭路线\n• 钢墙是永久掩体，架炮互射的好地方\n• 草丛可藏身，适合特工型坦克偷袭\n• 地形每局随机，开战先观察战场！', trigger: 'click', highlight: 'ys' },
+    { title: '暂停·成就存档', text: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n决斗到精彩处可按 ESC 或 P 键暂停\n→ 点击「💾 保存成就达成时间」按钮\n→ 胜负战绩与里程碑成就永久存档！\n（打完别忘了保存胜利者的战绩！）',
+      textTouch: '【重要提醒】\n每次打开网页会重置当前解锁成就！\n\n决斗到精彩处点右上角 ⏸ 暂停键\n→ 点击「💾 保存成就达成时间」按钮\n→ 胜负战绩与里程碑成就永久存档！\n（打完别忘了保存胜利者的战绩！）', trigger: 'click', highlight: null },
+    { title: '决斗开始！', text: '点到为止，祝你们打得尽兴！\n胜不骄败不馁，友谊第一比赛第二～\n倒计时结束后，立即开火！\n\n—— 新人制作，产品简陋请见谅！——', trigger: 'click', highlight: null }
+  ],
+  moveProgress: 0,
+  start(mode = 'single') {
+    this.mode = mode;
+    if (mode === 'coop') this.steps = [...this.stepsCoop];
+    else if (mode === 'pvp') this.steps = [...this.stepsPvp];
+    else this.steps = [...this.stepsSingle];
+    this.active = true;
+    this.step = 0;
+    this.moveProgress = 0;
+    document.getElementById('tutorial-dialog')?.classList.add('active');
+    // 禁用触控层交互，防止按钮拦截教程的"继续/跳过"点击
+    document.getElementById('touch-controls')?.classList.add('tutorial-active');
+    this._updateDialog();
+  },
+  end() {
+    this.active = false;
+    // 不同模式分别记录"已看过教程"，避免跨模式跳错
+    const key = 'tkdz_tutorialSeen_' + this.mode;
+    localStorage.setItem(key, '1');
+    localStorage.setItem('tkdz_tutorialSeen', '1'); // 兼容旧字段
+    document.getElementById('tutorial-dialog')?.classList.remove('active');
+    // 恢复触控层交互
+    document.getElementById('touch-controls')?.classList.remove('tutorial-active');
+    // 教程结束后再显示双人横屏提示（若仍竖屏）
+    if (typeof Game !== 'undefined' && Game.running) Game._updateDualLayout(true);
+  },
+  onPlayerMove() {
+    if (!this.active) return;
+    const s = this.steps[this.step];
+    if (s && s.trigger === 'move') {
+      this.moveProgress++;
+      if (this.moveProgress > 30) this.next();
+    }
+  },
+  next() {
+    this.step++;
+    if (this.step >= this.steps.length) { this.end(); return; }
+    this.moveProgress = 0;
+    this._updateDialog();
+  },
+  skip() { this.end(); },
+  _updateDialog() {
+    const d = document.getElementById('tutorial-dialog');
+    if (!d) return;
+    const s = this.steps[this.step];
+    d.querySelector('.tut-title').textContent = s.title;
+    // 触屏设备使用 textTouch 文案（移动端教程），否则用键盘文案（PC端教程）
+    const useTouch = (typeof TouchControls !== 'undefined' && TouchControls.enabled);
+    d.querySelector('.tut-text').textContent = (useTouch && s.textTouch) ? s.textTouch : s.text;
+    // 步骤进度
+    const ind = d.querySelector('.tut-step-indicator');
+    if (ind) ind.textContent = `第 ${this.step + 1} / ${this.steps.length} 步`;
+    // 双人模式用不同配色点缀
+    d.style.border = this.mode === 'coop' ? '2px solid #66ffaa'
+                   : this.mode === 'pvp'  ? '2px solid #ff6666'
+                   : '2px solid #6fa7ff';
+    // 双人模式触屏：教程弹窗上移避开两侧触控区
+    if (useTouch && this.mode !== 'single') {
+      d.classList.add('dual-mode');
+    } else {
+      d.classList.remove('dual-mode');
+    }
+    const btn = d.querySelector('.tut-next');
+    btn.textContent = s.trigger === 'click' ? '继续 ▶' : '（移动中...）';
+    btn.disabled = s.trigger !== 'click';
+  },
+  render(ctx) {
+    if (!this.active) return;
+    const s = this.steps[this.step];
+    if (!s.highlight) return;
+    ctx.save();
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.globalCompositeOperation = 'source-over';
+    let rx = 0, ry = 0, rw = 0, rh = 0;
+    let stroke = '#ffdd44';
+    if (s.highlight === 'player' || s.highlight === 'p1') {
+      if (Game.players[0]) { rx = Game.players[0].x - 40; ry = Game.players[0].y - 40; rw = 80; rh = 80; stroke='#66bbff'; }
+    } else if (s.highlight === 'p2') {
+      if (Game.players[1]) { rx = Game.players[1].x - 40; ry = Game.players[1].y - 40; rw = 80; rh = 80; stroke='#ff8866'; }
+    } else if (s.highlight === 'ys') {
+      rx = CONFIG.CANVAS_W/2 - 260; ry = CONFIG.CANVAS_H/2 - 200; rw = 520; rh = 200;
+    } else if (s.highlight === 'map') {
+      rx = 60; ry = 60; rw = 200; rh = 200;
+    } else if (s.highlight === 'brand') {
+      rx = CONFIG.CANVAS_W/2 - 360; ry = CONFIG.CANVAS_H/2 - 100; rw = 720; rh = 200;
+    }
+    if (rw > 0) {
+      ctx.fillRect(0, 0, CONFIG.CANVAS_W, CONFIG.CANVAS_H);
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 3;
+      const d = Math.sin(Date.now()*0.008)*3;
+      ctx.strokeRect(rx-d, ry-d, rw+d*2, rh+d*2);
+    }
+    ctx.restore();
+  }
+};
+
+// ============================================================
+// 游戏主类
+// ============================================================
+const Game = {
+  canvas: null, ctx: null,
+  mode: 'single', // single | coop | pvp
+  map: null, tileHp: null,
+  players: [], enemies: [], bullets: [], powerups: [],
+  boss: null, isBossMode: false, bossIntroActive: false,
+  bossIntroTimer: 0,
+  score: 0, stage: CONFIG.STAGES[0], stageIdx: 0,
+  particles: null, cameraShake: null,
+  spawnTimer: 0,
+  timeScale: 1, result: null,
+  lastTs: 0, running: false,
+  bossDamageTakenByPlayer: 0,
+  // UI面板
+  achievementToast: null,
+  selectedTankType: 'assault',
+  selectedTankType2: 'heavy',
+
+  init() {
+    this.canvas = document.getElementById('game-canvas');
+    this.ctx = this.canvas.getContext('2d');
+    this.ctx.imageSmoothingEnabled = false;
+    InputManager.init();
+    TouchControls.init();
+    this.particles = new ParticleSystem();
+    this.cameraShake = new CameraShake();
+    AchievementTracker.freshInit();
+    BrandTextLayer.init();
+    this._buildTankSelect();
+    this._addTutorialHTML();
+    EventBus.on('enemyKilled', (d) => this._onEnemyKilled(d));
+    EventBus.on('bossDefeated', () => this._onBossDefeated());
+    EventBus.on('playerDied', () => this._checkGameOver());
+    EventBus.on('bossSpawnMinion', () => this._spawnBossMinion());
+    // 启动渲染循环（菜单时也可渲染背景）
+    this._menuLoop();
+  },
+
+  _addTutorialHTML() {
+    const html = `
+    <div id="tutorial-dialog" style="position:absolute;bottom:20px;left:50%;transform:translateX(-50%);width:min(94vw,640px);
+      background:rgba(12,18,36,0.95);border:3px solid #4a8aff;box-shadow:0 0 30px rgba(80,150,255,0.5);
+      display:none;z-index:210;padding:16px;flex-direction:row;gap:16px;">
+      <div style="width:90px;height:90px;flex-shrink:0;position:relative;">
+        <canvas id="mascot-canvas" width="90" height="90" style="image-rendering:pixelated;width:90px;height:90px;"></canvas>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <div class="tut-title" style="color:#ffdd44;font-size:14px;font-weight:bold;letter-spacing:2px;"></div>
+          <div class="tut-step-indicator" style="font-size:11px;color:#6699cc;letter-spacing:1px;"></div>
+        </div>
+        <div class="tut-text" style="color:#ddeeff;font-size:13px;line-height:1.7;white-space:pre-line;margin-bottom:12px;flex:1;"></div>
+        <div style="border-top:1px dashed #334466;margin-bottom:8px;padding-top:6px;">
+          <div style="font-size:10px;color:#667788;text-align:center;letter-spacing:2px;opacity:0.8;">—— 新人制作，产品简陋请见谅！ ——</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;">
+          <button class="tut-skip" onclick="TutorialGuide.skip()" style="background:transparent;border:1px solid #666;color:#aaa;font-family:inherit;font-size:11px;padding:6px 12px;cursor:pointer;">跳过教程</button>
+          <button class="tut-next" onclick="TutorialGuide.next()" style="background:linear-gradient(180deg,#2a4a7a,#1a2a4a);border:2px solid #4a8aff;color:#fff;font-family:inherit;font-size:12px;padding:8px 18px;cursor:pointer;">继续 ▶</button>
+        </div>
+      </div>
+    </div>`;
+    document.getElementById('game-container').insertAdjacentHTML('beforeend', html);
+    // 动态渲染鱿鱼吉祥物（原创设计，基于参考像素风格）
+    const mc = document.getElementById('mascot-canvas');
+    const mctx = mc.getContext('2d');
+    const drawMascot = () => {
+      mctx.clearRect(0,0,90,90);
+      const t = Date.now()*0.003;
+      const bob = Math.sin(t)*2;
+      const col = '#223344';
+      const colLight = '#3a5570';
+      // 触手（鱿鱼风格，非章鱼）
+      mctx.fillStyle = col;
+      for (let i = 0; i < 6; i++) {
+        const a = -Math.PI/2 + (i - 2.5) * 0.35;
+        const wig = Math.sin(t*2 + i) * 3;
+        const lx = 45 + Math.cos(a)*12;
+        const ly = 60 + bob + Math.sin(a)*8 + wig*0.5;
+        const ll = 18 + Math.sin(t*3+i)*2;
+        const ex = lx + Math.cos(a)*ll;
+        const ey = ly + Math.sin(a)*ll + wig;
+        mctx.save();
+        mctx.translate(lx, ly);
+        mctx.rotate(a);
+        mctx.fillRect(0, -3, ll, 6);
+        mctx.fillStyle = colLight;
+        mctx.fillRect(0, -3, ll, 2);
+        mctx.fillStyle = col;
+        mctx.restore();
+      }
+      // 头部（方形，像MC）
+      const hy = 18 + bob;
+      mctx.fillStyle = '#1a2535';
+      mctx.fillRect(21, hy, 48, 44);
+      mctx.fillStyle = col;
+      mctx.fillRect(25, hy+4, 40, 36);
+      mctx.fillStyle = colLight;
+      mctx.fillRect(25, hy+4, 40, 8);
+      mctx.fillRect(25, hy+4, 8, 36);
+      // 眼睛
+      mctx.fillStyle = '#ffffff';
+      mctx.fillRect(32, hy+16, 8, 10);
+      mctx.fillRect(50, hy+16, 8, 10);
+      mctx.fillStyle = '#222';
+      const eyeSh = Math.floor(Math.sin(t*2)*1);
+      mctx.fillRect(34+eyeSh, hy+18, 5, 6);
+      mctx.fillRect(52+eyeSh, hy+18, 5, 6);
+      mctx.fillStyle = '#55ffff';
+      mctx.fillRect(36+eyeSh, hy+19, 2, 2);
+      mctx.fillRect(54+eyeSh, hy+19, 2, 2);
+      // 嘴（微笑）
+      mctx.fillStyle = '#111';
+      mctx.fillRect(38, hy+32, 14, 2);
+      mctx.fillRect(38, hy+32, 2, 2); mctx.fillRect(50, hy+32, 2, 2);
+      // 金色徽章
+      mctx.fillStyle = '#ffdd44';
+      mctx.fillRect(41, hy+42, 8, 2);
+      mctx.fillStyle = '#ff8844';
+      mctx.fillRect(43, hy+44, 4, 2);
+    };
+    setInterval(drawMascot, 60);
+  },
+
+  _buildTankSelect() {
+    const grid = document.getElementById('tankGrid');
+    const types = Object.keys(TANK_TYPES);
+    grid.innerHTML = '';
+    const phase = this._tankSelectPhase; // 'single' | 'p1' | 'p2'
+    const isDual = (this.mode !== 'single');
+    const p1Type = this.selectedTankType;
+    const p2Type = this.selectedTankType2;
+    // 口径基准（严格沿用：MAX_HP=220/MAX_SPEED=170/MAX_ATK=45/射速最快=0.32）
+    const MAX_HP = 220, MAX_SPEED = 170, MAX_ATK = 45, MIN_FIRE = 0.32, MAX_FIRE = 0.9;
+    // —— 辅助：带刻度(5格)的属性条HTML模板（条更长，端值标在右端） ——
+    const barHTML = (labelText, labelColor, valueText, pct, gradColors) => `
+      <div style="display:flex;align-items:center;margin:6px 0;gap:6px;">
+        <div style="width:44px;flex-shrink:0;color:${labelColor};font-size:10px;font-weight:bold;letter-spacing:0.5px;">${labelText}</div>
+        <div style="position:relative;flex:1;height:12px;background:rgba(30,40,70,0.9);border:1px solid #2a3a6a;border-radius:2px;overflow:hidden;">
+          <!-- 5等分刻度（竖线4条） -->
+          <div style="position:absolute;inset:0;display:flex;justify-content:space-around;pointer-events:none;">
+            <div style="width:1px;background:rgba(255,255,255,0.08);height:100%;"></div>
+            <div style="width:1px;background:rgba(255,255,255,0.1);height:100%;"></div>
+            <div style="width:1px;background:rgba(255,255,255,0.1);height:100%;"></div>
+            <div style="width:1px;background:rgba(255,255,255,0.08);height:100%;"></div>
+          </div>
+          <!-- 渐变填充条 -->
+          <div style="position:absolute;top:0;left:0;height:100%;width:${pct}%;background:linear-gradient(90deg,${gradColors});box-shadow:0 0 6px ${gradColors.split(',')[1]}55;"></div>
+          <!-- 右端数值标签（浮在条的最右侧外面，白底黑字/深底白字） -->
+          <div style="position:absolute;right:2px;top:50%;transform:translateY(-50%);color:#fff;font-size:9px;font-weight:bold;text-shadow:0 0 2px #000;letter-spacing:0.3px;pointer-events:none;z-index:2;">${valueText}</div>
+        </div>
+      </div>`;
+    types.forEach((tid, idx) => {
+      const cfg = TANK_TYPES[tid];
+      const hpPct = Math.round(cfg.hp / MAX_HP * 100);
+      const spPct = Math.round(cfg.speed / MAX_SPEED * 100);
+      const atPct = Math.round(cfg.damage / MAX_ATK * 100);
+      const frPct = Math.round(Math.max(0, Math.min(100, (MAX_FIRE - cfg.fireRate) / (MAX_FIRE - MIN_FIRE) * 100)));
+      // —— 当前卡片状态 ——
+      let isSelected = false;
+      let selBorder = '';
+      let selBadge = ''; // 右上角玩家徽标
+      let selOverlay = ''; // "已选P1"遮罩
+      if (!isDual) {
+        // 单人：按 tid == selectedTankType 判断
+        isSelected = (tid === this.selectedTankType);
+        selBorder = isSelected ? '3px solid #6fa7ff' : '2px solid rgba(100,120,180,0.3)';
+      } else {
+        // 双人：按阶段
+        const isP1Choice = (tid === p1Type);
+        const isP2Choice = (tid === p2Type);
+        if (phase === 'p1') {
+          // P1阶段：当前选中→蓝边框
+          isSelected = (tid === p1Type);
+          selBorder = isSelected
+            ? '3px solid #4488ff; box-shadow:0 0 16px rgba(68,136,255,0.55);'
+            : '2px solid rgba(100,120,180,0.3)';
+          selBadge = isSelected
+            ? `<div style="position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:10px;background:linear-gradient(135deg,#4488ff,#2266cc);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;box-shadow:0 0 6px #4488ffaa;">P1 ✓</div>`
+            : '';
+        } else {
+          // P2阶段：P1已选→蓝徽标+浅蓝底；P2选中→红边框+红徽
+          if (isP1Choice && isP2Choice) {
+            // P1 P2选了同一个：两个徽标叠放，P2优先边框红色
+            isSelected = true;
+            selBorder = '3px solid #ff6644; box-shadow:0 0 16px rgba(255,102,68,0.55);';
+            selBadge = `
+              <div style="position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:10px;background:linear-gradient(135deg,#ff6644,#cc2211);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;box-shadow:0 0 6px #ff6644aa;">P2 ✓</div>
+              <div style="position:absolute;top:32px;right:6px;padding:2px 8px;border-radius:10px;background:linear-gradient(135deg,#4488ff,#2266cc);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;">P1 ✓</div>`;
+            selOverlay = '';
+          } else if (isP1Choice) {
+            // 只是P1选了：浅蓝底+蓝徽+半透明（不能选的状态但可以点）
+            isSelected = false;
+            selBorder = '2px solid rgba(102,255,170,0.7);background:rgba(102,200,255,0.08);';
+            selBadge = `<div style="position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:10px;background:linear-gradient(135deg,#33aa66,#227744);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;">P1已选</div>`;
+            selOverlay = '';
+          } else if (isP2Choice) {
+            // 只是P2选了：红边框+红徽
+            isSelected = true;
+            selBorder = '3px solid #ff6644; box-shadow:0 0 16px rgba(255,102,68,0.55);';
+            selBadge = `<div style="position:absolute;top:6px;right:6px;padding:2px 8px;border-radius:10px;background:linear-gradient(135deg,#ff6644,#cc2211);color:#fff;font-size:10px;font-weight:bold;letter-spacing:1px;box-shadow:0 0 6px #ff6644aa;">P2 ✓</div>`;
+          } else {
+            selBorder = '2px solid rgba(100,120,180,0.3)';
+          }
+        }
+      }
+      const card = document.createElement('div');
+      card.className = 'tank-card' + (isSelected ? ' selected' : '');
+      card.dataset.type = tid;
+      card.style.cssText = 'position:relative;transition:all 0.18s ease;border:' + selBorder + ';';
+      card.innerHTML = `
+        ${selBadge}
+        <canvas class="tank-preview" width="80" height="80" style="margin-top:4px;"></canvas>
+        <div class="tank-name" style="margin-top:2px;">${cfg.name}</div>
+        <div class="tank-type-label">${cfg.label}</div>
+        <!-- 属性条区：更大的容器+带刻度端值属性条 -->
+        <div style="background:rgba(20,25,50,0.75);padding:8px 8px 4px;margin:8px 4px 4px;border:1px solid #2a3a6a;border-radius:3px;">
+          ${barHTML('❤ 血量', '#ff6677', cfg.hp, hpPct, '#ff3344,#ff9966')}
+          ${barHTML('» 速度', '#55ffbb', cfg.speed, spPct, '#33dd77,#88ffcc')}
+          ${barHTML('⚔ 攻击', '#ffaa33', cfg.damage, atPct, '#ff7722,#ffdd55')}
+          ${barHTML('⇆ 射速', '#77bbff', (1/cfg.fireRate).toFixed(1)+'/s', frPct, '#3377ee,#99ddff')}
+        </div>
+        <div style="margin:6px 4px 0;padding:5px 6px;background:rgba(40,20,10,0.6);border-left:3px solid #ffaa44;font-size:9px;line-height:1.5;">
+          <div style="color:#ffdd88;font-weight:bold;margin-bottom:2px;">◆ ${cfg.skillName}</div>
+          <div style="color:#ffd6a8;">${cfg.skillShort}</div>
+        </div>
+        <div style="margin:6px 0 2px;font-size:8px;color:#667799;letter-spacing:1px;">击杀敌人充能 · 满即释放</div>
+      `;
+      card.onclick = () => {
+        // 双人：phase=p1选 selectedTankType，phase=p2选 selectedTankType2
+        if (this.mode !== 'single') {
+          if (this._tankSelectPhase === 'p1') this.selectedTankType = tid;
+          else this.selectedTankType2 = tid;
+        } else {
+          this.selectedTankType = tid;
+        }
+        // 重绘整批卡片（保持一致的P1/P2徽标状态）
+        this._buildTankSelect();
+      };
+      if (!isDual && idx === 0 && !card.classList.contains('selected')) {
+        // 单人：默认第一张选中（仅当没有选过）
+      }
+      grid.appendChild(card);
+      const pc = card.querySelector('canvas');
+      const pctx = pc.getContext('2d');
+      pctx.imageSmoothingEnabled = false;
+      this._drawTankPreview(pctx, cfg, 40, 40, 0);
+    });
+  },
+  _drawTankPreview(ctx, cfg, cx, cy, angle) {
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.fillStyle = cfg.trackColor;
+    ctx.fillRect(-24, -18, 8, 36);
+    ctx.fillRect(16, -18, 8, 36);
+    ctx.fillStyle = cfg.color;
+    ctx.fillRect(-16, -14, 32, 28);
+    ctx.fillStyle = 'rgba(255,255,255,0.2)';
+    ctx.fillRect(-16, -14, 32, 4);
+    ctx.fillStyle = this._hexShade(cfg.color, -20);
+    ctx.fillRect(-11, -11, 22, 22);
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, -3, 24, 6);
+    ctx.restore();
+  },
+  _hexShade(hex, p) { const n = parseInt(hex.slice(1),16); const r = Math.max(0,Math.min(255,(n>>16)+p)); const g = Math.max(0,Math.min(255,((n>>8)&0xff)+p)); const b = Math.max(0,Math.min(255,(n&0xff)+p)); return '#'+((r<<16)|(g<<8)|b).toString(16).padStart(6,'0'); },
+
+  // ---- 菜单入口 ----
+  startTutorial() {
+    this.mode = 'single';
+    this._tankSelectPhase = 'single'; // 单人不分期
+    this._updateSelectStepUI();
+    this._buildTankSelect();
+    document.getElementById('tank-select').classList.add('active');
+    document.getElementById('menu-overlay').classList.add('hidden');
+  },
+  startMode(mode) {
+    this.mode = mode;
+    this._tankSelectPhase = (mode === 'single') ? 'single' : 'p1'; // 双人从P1选起
+    this._updateSelectStepUI();
+    this._buildTankSelect();
+    document.getElementById('tank-select').classList.add('active');
+    document.getElementById('menu-overlay').classList.add('hidden');
+  },
+  // —— 坦克选择阶段UI（步骤指示器、标题、按钮文案） ——
+  _updateSelectStepUI() {
+    const phase = this._tankSelectPhase;
+    const d1 = document.getElementById('step-dot-1');
+    const d2 = document.getElementById('step-dot-2');
+    const line = document.getElementById('step-line-fill');
+    const hint = document.getElementById('step-mode-hint');
+    const title = document.getElementById('selectTitleText');
+    const btn = document.getElementById('confirmTankBtn');
+    const showDots = (this.mode !== 'single');
+    document.getElementById('select-step-indicator').style.display = showDots ? 'flex' : 'none';
+    if (this.mode === 'single') {
+      title.textContent = '选择你的坦克';
+      if (btn) btn.textContent = '开始战斗';
+      hint.textContent = '';
+      return;
+    }
+    // —— 双人模式（coop 或 pvp） ——
+    hint.textContent = this.mode === 'coop' ? '◆ 双人协作模式' : '◆ 双人对抗模式';
+    hint.style.color = this.mode === 'coop' ? '#66ffaa' : '#ff7766';
+    if (phase === 'p1') {
+      // P1阶段：P1亮蓝，P2灰，进度条0%
+      title.innerHTML = '<span style="color:#66bbff;">① 玩家1 (P1)</span> 选择你的坦克';
+      d1.style.borderColor = '#4488ff'; d1.style.color = '#fff'; d1.style.background = 'rgba(68,136,255,0.2)';
+      d2.style.borderColor = '#333'; d2.style.color = '#888'; d2.style.background = '#222';
+      line.style.width = '0%';
+      if (btn) btn.textContent = '确认P1 → 选择P2';
+    } else {
+      // P2阶段：P1亮绿(已确认)，P2亮红，进度条100%
+      const p1cfg = TANK_TYPES[this.selectedTankType];
+      title.innerHTML = '<span style="color:#66ff99;">✓ P1已选：'+p1cfg.name+'</span>　<span style="color:#ff8866;">② 玩家2 (P2)</span> 选择坦克';
+      d1.style.borderColor = '#66ff99'; d1.style.color = '#fff'; d1.style.background = 'rgba(102,255,153,0.2)';
+      d2.style.borderColor = '#ff6644'; d2.style.color = '#fff'; d2.style.background = 'rgba(255,102,68,0.2)';
+      line.style.width = '100%';
+      if (btn) {
+        btn.textContent = (this.mode==='coop'?'⚘ 同盟出击！':'⚔ 决斗开始！');
+      }
+    }
+  },
+  openAchievements() { this._showGallery(); },
+  showTutorial(mode = 'single') {
+    // 【强制重看指定模式教程】忽略seen标志，直接启动对应教程
+    // 单人=single，双人协作=coop，双人对抗=pvp
+    if (mode !== 'single' && mode !== 'coop' && mode !== 'pvp') mode = 'single';
+    this.mode = mode;
+    // 为快速演示教程，默认给两种典型坦克（双人P2给重型互补）
+    this.selectedTankType  = 'assault';
+    this.selectedTankType2 = (mode === 'pvp') ? 'artillery' : 'heavy'; // 对抗用远程对抗感强
+    // 双人模式下也按双人规则启动游戏：_startGame(true)=开启教程
+    this._startGame(true);
+  },
+  backToMenu() {
+    this.running = false;
+    this.paused = false;
+    TouchControls.show(false);
+    document.getElementById('tank-select').classList.remove('active');
+    document.getElementById('result-overlay').classList.remove('active');
+    document.getElementById('pause-overlay').style.display = 'none';
+    document.getElementById('menu-overlay').classList.remove('hidden');
+    TutorialGuide.end();
+    // 退出真实横屏（若此前进入了全屏+方向锁定）
+    try {
+      if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen();
+    } catch (err) {}
+    this._updateDualLayout(false); // 复位强制横屏旋转
+    this._menuLoop(); // 重启菜单背景渲染（游戏中已停止）
+  },
+  confirmTank() {
+    // 【双人模式p1】确认P1选择 → 切到P2阶段，重绘卡片
+    if (this.mode !== 'single' && this._tankSelectPhase === 'p1') {
+      this._tankSelectPhase = 'p2';
+      this._updateSelectStepUI();
+      this._buildTankSelect(); // 重绘卡片：标记P1已选+P2当前选中
+      return;
+    }
+    // 教程判断：首次且各模式独立
+    const seen = localStorage.getItem('tkdz_tutorialSeen_' + this.mode)
+              || (this.mode === 'single' && localStorage.getItem('tkdz_tutorialSeen'));
+    this._startGame(!seen);
+  },
+  restart() {
+    document.getElementById('result-overlay').classList.remove('active');
+    this._startGame(false);
+  },
+  // 中途暂停
+  togglePause() {
+    if (!this.running) return;
+    this.paused = !this.paused;
+    document.getElementById('pause-overlay').style.display = this.paused ? 'flex' : 'none';
+    // 打开暂停面板时，自动显示最近保存时间
+    if (this.paused) {
+      const el = document.getElementById('pause-save-status');
+      if (el) {
+        if (AchievementTracker._lastSavedAtStr) {
+          el.innerHTML = `<span style="color:#88ccaa;">✓ 最近保存于：${AchievementTracker._lastSavedAtStr}</span>`;
+        } else {
+          const perm = localStorage.getItem(AchievementTracker.PERM_KEY);
+          try {
+            const s = perm ? JSON.parse(perm) : null;
+            if (s?.savedAtStr) {
+              el.innerHTML = `<span style="color:#6699aa;">历史保存于：${s.savedAtStr}（点击下方按钮更新）</span>`;
+            } else {
+              el.innerHTML = `<span style="color:#aa8866;">尚未永久保存成就，保存后跨页面不丢失</span>`;
             }
-        });
+          } catch(e) { el.textContent = ''; }
+        }
+      }
+    } else {
+      // 继续游戏时刷新时间戳，防止暂停期间dt过大
+      this.lastTs = performance.now();
+    }
+  },
+  quitToMenuFromPause() {
+    this.paused = false;
+    document.getElementById('pause-overlay').style.display = 'none';
+    this.backToMenu();
+  },
+  // 【暂停面板】用户手动保存成就：只有点了这个按钮才会写永久存档
+  savePermanentAchievements() {
+    const snap = AchievementTracker.savePermanent();
+    const unlockedCount = Object.keys(snap.unlocked || {}).length;
+    const btn = document.getElementById('btn-save-achv');
+    const status = document.getElementById('pause-save-status');
+    // 暂停面板上显示保存状态
+    if (status) {
+      status.innerHTML = `<span style="color:#66ff88;">✓ 已保存！时间：${snap.savedAtStr}（已解锁 ${unlockedCount} 个成就）</span>`;
+    }
+    // 按钮视觉反馈
+    if (btn) {
+      const old = btn.textContent;
+      const oldBg = btn.style.background;
+      btn.textContent = '✅ 保存成功！';
+      btn.style.background = 'linear-gradient(180deg,#2a6a3a,#104020)';
+      btn.style.borderColor = '#88ff77';
+      btn.style.color = '#ffffff';
+      setTimeout(() => { btn.textContent = old; btn.style.background = oldBg; btn.style.borderColor = '#66cc55'; btn.style.color = '#d9ff99'; }, 1600);
+    }
+    // 同时弹出成就toast提示已保存
+    try {
+      const g = document.getElementById('achievement-toast');
+      if (!g) {
+        const div = document.createElement('div');
+        div.id = 'achievement-toast';
+        div.style.cssText = 'position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:14px 26px;border:2px solid #66ff88;border-radius:6px;background:rgba(10,40,20,0.9);color:#d9ff99;font-family:inherit;font-size:13px;letter-spacing:1px;z-index:250;box-shadow:0 0 20px #66ff8855;transition:opacity 0.4s;';
+        document.getElementById('game-container').appendChild(div);
+      }
+      const t = document.getElementById('achievement-toast');
+      t.innerHTML = `💾 成就存档完成 · ${snap.savedAtStr}<br><span style="font-size:11px;color:#88ddaa;">已解锁 ${unlockedCount} 项成就，关闭页面后仍可在展馆查看</span>`;
+      t.style.opacity = '1';
+      clearTimeout(window.__achvSaveT);
+      window.__achvSaveT = setTimeout(() => { t.style.opacity = '0'; }, 3200);
+    } catch(e) {}
+  },
 
-        const camera = new Camera(video, {
-            onFrame: async () => { await hands.send({ image: video }); },
-            width: 640,
-            height: 480
-        });
-        camera.start();
+  _showGallery() {
+    // 创建成就展馆
+    let html = `<div id="achieve-gallery" style="position:absolute;inset:0;background:rgba(5,5,20,0.95);z-index:300;display:flex;flex-direction:column;padding:30px 50px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+        <h2 style="font-size:28px;color:#ffd60a;letter-spacing:6px;text-shadow:0 0 15px rgba(255,200,50,0.6);">🏆 成就展馆 🏆</h2>
+        <button onclick="document.getElementById('achieve-gallery').remove()" style="font-family:inherit;background:linear-gradient(180deg,#773322,#441111);border:2px solid #ff5544;color:#fff;padding:10px 20px;cursor:pointer;">关闭 ✕</button>
+      </div>
+      <div style="color:#8899bb;font-size:12px;margin-bottom:20px;">按照解锁时间顺序展示你的荣耀时刻</div>
+      <div style="flex:1;overflow-y:auto;padding:20px;background:rgba(20,25,50,0.5);border:2px solid #333366;">`;
+    // 分类：已解锁按时间，未解锁排在最后
+    const unlocked = ACHIEVEMENTS.filter(a => AchievementTracker.unlocked[a.id]).sort((a,b) => AchievementTracker.unlocked[a.id].unlockedAt - AchievementTracker.unlocked[b.id].unlockedAt);
+    const locked = ACHIEVEMENTS.filter(a => !AchievementTracker.unlocked[a.id]);
+    unlocked.forEach((a, i) => {
+      const d = new Date(AchievementTracker.unlocked[a.id].unlockedAt);
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      html += `<div style="display:flex;align-items:center;padding:14px;margin:10px 0;background:linear-gradient(90deg,rgba(255,200,50,0.15),rgba(255,200,50,0));border-left:5px solid #ffd60a;position:relative;">
+        <div style="position:absolute;left:-25px;top:50%;transform:translateY(-50%);width:12px;height:12px;background:#ffd60a;border-radius:50%;box-shadow:0 0 10px #ffd60a;"></div>
+        <div style="width:56px;height:56px;background:linear-gradient(180deg,#ffd60a,#ff9922);display:flex;align-items:center;justify-content:center;font-size:28px;margin-right:18px;flex-shrink:0;border:2px solid #aa7700;">${a.icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;color:#fff;margin-bottom:4px;"><b>${a.name}</b> <span style="color:#888;font-size:11px;margin-left:10px;">#${i+1} 解锁于 ${dateStr}</span></div>
+          <div style="font-size:12px;color:#aabbdd;">${a.desc}</div>
+        </div>
+      </div>`;
+    });
+    locked.forEach(a => {
+      html += `<div style="display:flex;align-items:center;padding:14px;margin:10px 0;background:rgba(40,40,60,0.3);border-left:5px solid #444455;opacity:0.6;">
+        <div style="position:absolute;left:-25px;top:50%;"></div>
+        <div style="width:56px;height:56px;background:#333;display:flex;align-items:center;justify-content:center;font-size:28px;margin-right:18px;flex-shrink:0;border:2px solid #555;filter:grayscale(1);">${a.icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:15px;color:#888;margin-bottom:4px;"><b>${a.name}</b> <span style="font-size:11px;margin-left:10px;">（未解锁）</span></div>
+          <div style="font-size:12px;color:#666;">${a.desc}</div>
+        </div>
+      </div>`;
+    });
+    html += `</div></div>`;
+    document.getElementById('game-container').insertAdjacentHTML('beforeend', html);
+  },
 
-        console.log('✅ 已启动');
-    </script>
+  // ---- 开始游戏 ----
+  _startGame(runTutorial = false) {
+    document.getElementById('tank-select').classList.remove('active');
+    document.getElementById('menu-overlay').classList.add('hidden');
+    const { tiles, tileHp } = generateMap();
+    this.map = tiles;
+    this.tileHp = tileHp;
+    this.bullets = [];
+    this.enemies = [];
+    this.powerups = [];
+    this.boss = null;
+    this.isBossMode = false;
+    this.bossIntroActive = false;
+    this.score = 0;
+    this.stageIdx = 0;
+    this.stage = CONFIG.STAGES[0];
+    this.spawnTimer = 2;
+    this.timeScale = 1;
+    this.result = null;
+    this.bossDamageTakenByPlayer = 0;
+    this.paused = false;
+    AchievementTracker.resetRun();
+    // 玩家
+    this.players = [];
+    const py = CONFIG.CANVAS_H - 80;
+    const spawnPositions = [];
+    if (this.mode === 'pvp') {
+      spawnPositions.push({ x: CONFIG.CANVAS_W * 0.25, y: py, type: this.selectedTankType, tag: 'p1' });
+      spawnPositions.push({ x: CONFIG.CANVAS_W * 0.75, y: py, type: this.selectedTankType2, tag: 'p2' });
+    } else if (this.mode === 'coop') {
+      spawnPositions.push({ x: CONFIG.CANVAS_W * 0.35, y: py, type: this.selectedTankType, tag: 'p1' });
+      spawnPositions.push({ x: CONFIG.CANVAS_W * 0.65, y: py, type: this.selectedTankType2, tag: 'p2' });
+    } else {
+      spawnPositions.push({ x: CONFIG.CANVAS_W / 2, y: py, type: this.selectedTankType, tag: 'player' });
+    }
+    // 先清每个玩家2x2 tile周围的障碍（保证出生无阻挡）
+    for (const sp of spawnPositions) {
+      const tx = Math.floor(sp.x / CONFIG.TILE);
+      const ty = Math.floor(sp.y / CONFIG.TILE);
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          const nx = tx + dx, ny = ty + dy;
+          if (nx > 0 && ny > 0 && nx < CONFIG.MAP_W-1 && ny < CONFIG.MAP_H-1) {
+            // 清除非边界钢墙的一切障碍
+            const t = this.map[ny][nx];
+            if (t === TILE_TYPES.BRICK || t === TILE_TYPES.WATER || t === TILE_TYPES.BUSH ||
+                (t === TILE_TYPES.STEEL && ny>1 && ny<CONFIG.MAP_H-2 && nx>1 && nx<CONFIG.MAP_W-2)) {
+              this.map[ny][nx] = TILE_TYPES.EMPTY;
+              this.tileHp[ny][nx] = 0;
+            }
+          }
+        }
+      }
+    }
+    // 创建玩家实例
+    for (const sp of spawnPositions) {
+      this.players.push(new Tank(sp.x, sp.y, sp.type, true, sp.tag));
+    }
+    BrandTextLayer.fillRatio = 0;
+    BrandTextLayer.setStage(1);
+    this.running = true;
+    // 隐藏暂停面板
+    document.getElementById('pause-overlay').style.display = 'none';
+    this.lastTs = performance.now();
+    TouchControls.show(true);
+    if (runTutorial) TutorialGuide.start(this.mode);
+    if (this.mode !== 'single' && TouchControls.enabled) this._tryRealLandscape();
+    this._updateDualLayout(true);
+    this._showModeTip();
+    requestAnimationFrame((ts) => this._loop(ts));
+  },
+
+  // 每次进入模式的温馨提示
+  _showModeTip() {
+    const el = document.getElementById('mode-tip');
+    if (!el) return;
+    el.textContent = '💡 温馨提示：如遇问题，请退出至主页面重新进入'
+      + (this.mode !== 'single' ? '（移动端双人：左侧 P1 / 右侧 P2 分区触控，竖屏会自动旋转为横屏画面）' : '');
+    el.classList.remove('show');
+    void el.offsetWidth; // 强制重排以重启动画
+    el.classList.add('show');
+  },
+
+  // —— 双人模式布局：切换触控分区（dual 类），并按需提示横屏 ——
+  _updateDualLayout(allowHint = false) {
+    const tc = document.getElementById('touch-controls');
+    if (tc) tc.classList.toggle('dual', this.running && this.mode && this.mode !== 'single');
+    this._applyForcedLandscape();
+    const hint = document.getElementById('rotate-hint');
+    if (!hint) return;
+    const forced = !!this._forcedLandscape;
+    const textEl = hint.querySelector('.rh-text');
+    if (textEl) textEl.textContent = forced
+      ? '已自动横屏 · 请横向握持手机，左右分区操作'
+      : '建议横屏游玩 · 左右分区操作';
+    const show = !!allowHint
+      && this.running && this.mode && this.mode !== 'single'
+      && TouchControls.enabled
+      && !(typeof TutorialGuide !== 'undefined' && TutorialGuide.active) // 教程期间不打扰，结束后再提示
+      && window.innerHeight > window.innerWidth
+      && !this._rotateHintDismissed;
+    hint.classList.toggle('show', show);
+  },
+
+  // —— 强制横屏：微信等内置浏览器常锁定竖屏，双人模式用 CSS 旋转模拟横屏 ——
+  // 触发条件：触屏设备 + 双人模式（游戏中或结算界面）+ 视口仍为竖屏
+  _wantsForcedLandscape() {
+    if (!TouchControls.enabled) return false;
+    if (!this.mode || this.mode === 'single') return false;
+    const resultOn = !!(document.getElementById('result-overlay') || {}).classList &&
+      document.getElementById('result-overlay').classList.contains('active');
+    if (!this.running && !resultOn) return false;
+    return window.innerHeight > window.innerWidth;
+  },
+  _applyForcedLandscape() {
+    const c = document.getElementById('game-container');
+    if (!c) return;
+    const on = this._wantsForcedLandscape();
+    this._forcedLandscape = on;
+    if (on) {
+      c.classList.add('forced-landscape');
+      c.style.width = window.innerHeight + 'px';
+      c.style.height = window.innerWidth + 'px';
+    } else if (c.classList.contains('forced-landscape')) {
+      c.classList.remove('forced-landscape');
+      c.style.width = '';
+      c.style.height = '';
+    }
+  },
+
+  // —— 尝试真实横屏：全屏 + 方向锁定（部分安卓微信/浏览器支持），失败则由强制横屏兜底 ——
+  _tryRealLandscape() {
+    if (window.innerHeight <= window.innerWidth) return; // 已是横屏则无需处理
+    try {
+      const el = document.documentElement;
+      const req = el.requestFullscreen || el.webkitRequestFullscreen;
+      if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+        const p = req.call(el);
+        if (p && p.catch) p.catch(() => {});
+      }
+    } catch (err) {}
+    setTimeout(() => {
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          const p = screen.orientation.lock('landscape');
+          if (p && p.catch) p.catch(() => {});
+        }
+      } catch (err) {}
+    }, 400);
+  },
+
+  // 用户选择"仍要竖屏游玩"后，本次页面会话内不再提示
+  dismissRotateHint() {
+    this._rotateHintDismissed = true;
+    const hint = document.getElementById('rotate-hint');
+    if (hint) hint.classList.remove('show');
+  },
+
+  _menuLoop() {
+    // 主菜单背景：静态底图（随机砖块地形 + 钢铁洪流星徽）缓存一次，每帧只叠加动态元素
+    const ctx = this.ctx;
+    const W = CONFIG.CANVAS_W, H = CONFIG.CANVAS_H;
+    if (!this._menuBg) this._buildMenuBackground();
+    const draw = () => {
+      if (this.running) return; // 进入游戏后停
+      // 静态底图（网格/随机地形/星徽/暗角）
+      ctx.drawImage(this._menuBg, 0, 0);
+      // 中央"钢铁洪流"水印
+      BrandTextLayer.render(ctx, false);
+      // 漂浮火花粒子（蓝钢 + 橙色焊花）
+      const t = Date.now()*0.0005;
+      for (let i = 0; i < 30; i++) {
+        const x = ((i*97 + t*500) % W);
+        const y = ((i*53 + Math.sin(t+i)*40) % H + H) % H;
+        ctx.fillStyle = i % 3 === 0 ? '#ffaa44' : '#5588ff';
+        ctx.globalAlpha = 0.22 + Math.sin(t*2+i)*0.18;
+        ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2);
+      }
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    };
+    draw();
+  },
+
+  // 生成菜单静态底图：随机砖块地形 + 五角星徽记（每次刷新随机）
+  _buildMenuBackground() {
+    const W = CONFIG.CANVAS_W, H = CONFIG.CANVAS_H, T = CONFIG.TILE;
+    const cols = W / T, rows = H / T;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const rand = (a, b) => a + Math.random() * (b - a);
+    // 五角星绘制
+    const star = (cx, cy, r, rot, stroke, fill, lw) => {
+      g.save();
+      g.translate(cx, cy);
+      g.rotate(rot);
+      g.beginPath();
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + i * 2 * Math.PI / 5;
+        const b = a + Math.PI / 5;
+        g.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+        g.lineTo(Math.cos(b) * r * 0.45, Math.sin(b) * r * 0.45);
+      }
+      g.closePath();
+      if (fill) { g.fillStyle = fill; g.fill(); }
+      if (stroke) { g.strokeStyle = stroke; g.lineWidth = lw || 2; g.stroke(); }
+      g.restore();
+    };
+    // 深钢底色
+    g.fillStyle = '#0c101c';
+    g.fillRect(0, 0, W, H);
+    // 网格
+    g.strokeStyle = 'rgba(60,90,150,0.10)';
+    g.lineWidth = 1;
+    for (let x = 0; x <= W; x += T) { g.beginPath(); g.moveTo(x, 0); g.lineTo(x, H); g.stroke(); }
+    for (let y = 0; y <= H; y += T) { g.beginPath(); g.moveTo(0, y); g.lineTo(W, y); g.stroke(); }
+    // 随机砖块/钢块地形（中央留白衬托水印）
+    const inCenter = (cx, cy) => cx > 4 && cx < 19 && cy > 4 && cy < 14;
+    const occupied = new Set();
+    const clusters = 12 + Math.floor(Math.random() * 6);
+    for (let i = 0; i < clusters; i++) {
+      let tx = 0, ty = 0, ok = false;
+      for (let tries = 0; tries < 20; tries++) {
+        tx = Math.floor(rand(1, cols - 1));
+        ty = Math.floor(rand(1, rows - 1));
+        if (!inCenter(tx, ty) && !occupied.has(tx + ',' + ty)) { ok = true; break; }
+      }
+      if (!ok) continue;
+      let x = tx, y = ty;
+      const len = Math.floor(rand(2, 7));
+      for (let j = 0; j < len; j++) {
+        if (x < 1 || y < 1 || x > cols - 2 || y > rows - 2 || inCenter(x, y)) break;
+        const key = x + ',' + y;
+        if (!occupied.has(key)) {
+          occupied.add(key);
+          renderTile(g, Math.random() < 0.18 ? TILE_TYPES.STEEL : TILE_TYPES.BRICK, x, y, 2);
+        }
+        if (Math.random() < 0.5) x += Math.random() < 0.5 ? 1 : -1;
+        else y += Math.random() < 0.5 ? 1 : -1;
+      }
+    }
+    // 压暗地形，退为背景
+    g.fillStyle = 'rgba(8,12,24,0.62)';
+    g.fillRect(0, 0, W, H);
+    // 钢铁洪流星徽：中央大星衬托水印 + 四角小星
+    star(W / 2, H / 2, 250, 0, 'rgba(111,181,255,0.16)', 'rgba(80,130,255,0.05)', 3);
+    star(W / 2, H / 2, 180, 0, 'rgba(111,181,255,0.10)', null, 2);
+    star(90, 100, 26, rand(-0.4, 0.4), 'rgba(255,214,10,0.28)', 'rgba(255,214,10,0.10)', 2);
+    star(W - 110, 140, 20, rand(-0.4, 0.4), 'rgba(255,214,10,0.22)', null, 2);
+    star(150, H - 130, 18, rand(-0.4, 0.4), 'rgba(255,160,60,0.22)', null, 2);
+    star(W - 80, H - 100, 24, rand(-0.4, 0.4), 'rgba(255,214,10,0.25)', 'rgba(255,160,60,0.08)', 2);
+    // 暗角聚焦
+    const vg = g.createRadialGradient(W/2, H/2, H*0.35, W/2, H/2, H*0.78);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.5)');
+    g.fillStyle = vg;
+    g.fillRect(0, 0, W, H);
+    this._menuBg = c;
+  },
+
+  // ---- 主循环 ----
+  _loop(ts) {
+    if (!this.running) return;
+    let dt = (ts - this.lastTs) / 1000;
+    this.lastTs = ts;
+    dt = Math.min(dt, 0.05) * this.timeScale;
+    this._update(dt);
+    this._render();
+    requestAnimationFrame((t) => this._loop(t));
+  },
+
+  _update(dt) {
+    // 【中途暂停】ESC 或 P 键切换暂停
+    if (InputManager.wasPressed('escape') || InputManager.wasPressed('p')) {
+      this.togglePause();
+    }
+    if (this.paused) return; // 暂停时跳过全部战斗逻辑
+
+    // 玩家输入
+    const p1Input = InputManager.getP1();
+    const p2Input = InputManager.getP2();
+    const tanks = [...this.players.filter(p=>!p.dead), ...this.enemies.filter(e=>!e.dead)];
+    if (this.boss && !this.boss.dead) tanks.push({box:this.boss.box,isPlayer:false,dead:false,x:this.boss.x,y:this.boss.y,width:this.boss.width,height:this.boss.height});
+
+    if (!this.bossIntroActive) {
+      // P1
+      if (this.players[0] && !this.players[0].dead) {
+        this.players[0].move(p1Input, dt, this.map, tanks);
+        if (p1Input.fire) this.players[0].fire(this.bullets);
+        if (p1Input.skill) this.players[0].useSkill();
+        this.players[0].update(dt, this.map, tanks, this.bullets);
+        if (p1Input.up||p1Input.down||p1Input.left||p1Input.right) TutorialGuide.onPlayerMove();
+      }
+      // P2
+      if (this.players[1] && !this.players[1].dead) {
+        this.players[1].move(p2Input, dt, this.map, tanks);
+        if (p2Input.fire) this.players[1].fire(this.bullets);
+        if (p2Input.skill) this.players[1].useSkill();
+        this.players[1].update(dt, this.map, tanks, this.bullets);
+      }
+    }
+
+    // 敌人
+    const playerTarget = this.players.find(p => !p.dead) || this.players[0];
+    for (const e of this.enemies) {
+      if (e.dead) continue;
+      e.update(dt, this.map, tanks, this.bullets, playerTarget);
+    }
+    this.enemies = this.enemies.filter(e => !e.dead);
+
+    // Boss
+    if (this.bossIntroActive) {
+      this.bossIntroTimer -= dt;
+      if (this.bossIntroTimer <= 0) {
+        this.bossIntroActive = false;
+        this.timeScale = 1;
+      }
+    } else if (this.boss && !this.boss.dead) {
+      const beforeHp = this.players.reduce((s,p) => s + (p.hp/p.maxHp), 0);
+      this.boss.update(dt, this.map, this.bullets, this.players);
+      const afterHp = this.players.reduce((s,p) => s + (p.hp/p.maxHp), 0);
+      if (afterHp < beforeHp) this.bossDamageTakenByPlayer += (beforeHp - afterHp);
+    }
+
+    // 子弹
+    for (const b of this.bullets) {
+      if (b.dead) continue;
+      b.update(dt, this.map);
+      if (b.dead) continue;
+      // 子弹 vs 坦克
+      const allTanks = [...this.enemies, ...this.players];
+      if (this.boss && !this.boss.dead) allTanks.push(this.boss);
+      for (const t of allTanks) {
+        if (t.dead) continue;
+        // 友军不打友军
+        const isPlayerBullet = b.owner.includes('player') || b.owner === 'p1' || b.owner === 'p2';
+        const isPlayerTank = t.isPlayer || t.playerTag === 'p1' || t.playerTag === 'p2';
+        if (isPlayerBullet && isPlayerTank && t.playerTag !== undefined) {
+          // 自伤不判定，且不打队友
+          if (b.owner === t.playerTag) continue;
+          if (this.mode !== 'pvp') continue; // 协作模式不互伤
+        }
+        if (!isPlayerBullet && !isPlayerTank) continue; // 敌人不打敌人
+        // Boss只吃玩家子弹
+        if (t === this.boss && !isPlayerBullet) continue;
+        const box = t.box || { x: t.x-t.width/2, y: t.y-t.height/2, w: t.width, h: t.height };
+        if (b.x > box.x && b.x < box.x + box.w && b.y > box.y && b.y < box.y + box.h) {
+          t.takeDamage(b.damage);
+          if (isPlayerTank) Game.cameraShake.trigger(5);
+          // 爆破弹AOE
+          if (b.isExplosive) {
+            this.particles.explosion(b.x, b.y, '#ff8800', 20, 1.2);
+            Game.cameraShake.trigger(6);
+            for (const t2 of allTanks) {
+              if (t2 === t || t2.dead) continue;
+              const d = Math.hypot(t2.x - b.x, t2.y - b.y);
+              if (d < 60) t2.takeDamage(b.damage * 0.5);
+            }
+            // 爆破砖墙
+            const tx = Math.floor(b.x / CONFIG.TILE);
+            const ty = Math.floor(b.y / CONFIG.TILE);
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+              const nx = tx+dx, ny = ty+dy;
+              if (nx>=0&&ny>=0&&nx<CONFIG.MAP_W&&ny<CONFIG.MAP_H && this.map[ny][nx]===TILE_TYPES.BRICK) {
+                this.damageTile(nx, ny, 999);
+              }
+            }
+          } else {
+            Game.particles.sparks(b.x, b.y, isPlayerBullet ? '#ffffaa' : '#ffaaaa');
+          }
+          b.dead = true;
+          break;
+        }
+      }
+    }
+    this.bullets = this.bullets.filter(b => !b.dead);
+
+    // 道具
+    for (const pu of this.powerups) {
+      pu.update(dt);
+      if (pu.dead) continue;
+      for (const p of this.players) {
+        if (p.dead) continue;
+        const d = Math.hypot(p.x - pu.x, p.y - pu.y);
+        if (d < 28) {
+          p.applyPowerUp(pu.type);
+          Game.particles.pickupParticles(pu.x, pu.y, p.x, p.y, pu.getColor());
+          AchievementTracker.increment('pickupsCollected');
+          pu.dead = true;
+          break;
+        }
+      }
+    }
+    this.powerups = this.powerups.filter(p => !p.dead);
+
+    // 敌人生成（非PVP，非Boss阶段）
+    if (this.mode !== 'pvp' && !this.isBossMode && !this.bossIntroActive) {
+      this.spawnTimer -= dt;
+      if (this.spawnTimer <= 0) {
+        this.spawnTimer = this.stage.spawnRate * (0.8 + Math.random() * 0.4);
+        this._spawnEnemy();
+      }
+    }
+
+    // 玩家 vs 玩家 碰撞（PK模式）
+    if (this.mode === 'pvp') {
+      this._checkPVP();
+    }
+
+    // 粒子与震动
+    this.particles.update(dt);
+    this.cameraShake.update(dt);
+
+    // 积分 / Stage 更新
+    this._updateStage();
+
+    // Boss触发
+    if (this.mode !== 'pvp' && !this.isBossMode && this.score >= CONFIG.BOSS_THRESHOLD && this.enemies.length === 0) {
+      this._triggerBossIntro();
+    }
+
+    // 品牌文字
+    const stage1Th = CONFIG.STAGES[0].scoreMax;
+    BrandTextLayer.fillRatio = Math.min(1, this.score / stage1Th);
+    BrandTextLayer.update(dt, this.isBossMode);
+  },
+
+  _updateStage() {
+    let newIdx = this.stageIdx;
+    for (let i = 0; i < CONFIG.STAGES.length; i++) {
+      if (this.score >= CONFIG.STAGES[i].scoreMin && this.score < CONFIG.STAGES[i].scoreMax) { newIdx = i; break; }
+      if (i === CONFIG.STAGES.length - 1 && this.score >= CONFIG.STAGES[i].scoreMin) newIdx = i;
+    }
+    if (newIdx !== this.stageIdx) {
+      this.stageIdx = newIdx;
+      this.stage = CONFIG.STAGES[newIdx];
+      BrandTextLayer.setStage(this.stage.id);
+      EventBus.emit('stageChange', this.stage);
+      this._showStageBanner();
+    }
+    if (this.score > AchievementTracker.stats.maxScore) {
+      AchievementTracker.stats.maxScore = this.score;
+      AchievementTracker.check();
+      AchievementTracker.save();
+    }
+  },
+  _stageBanner: null,
+  _showStageBanner() {
+    this._stageBanner = { text: `⚠ 威胁等级提升  STAGE ${this.stage.id} ⚠`, timer: 2.5 };
+  },
+
+  _spawnEnemy() {
+    const T = CONFIG.TILE;
+    const spawnPoints = [
+      { x: T*1.5, y: T*1.5 },
+      { x: CONFIG.CANVAS_W - T*1.5, y: T*1.5 },
+      { x: CONFIG.CANVAS_W/2, y: T*1.5 },
+    ];
+    const pool = this.stage.enemyPool;
+    const type = pool[Math.floor(Math.random() * pool.length)];
+    let sp = spawnPoints[Math.floor(Math.random() * spawnPoints.length)];
+    // 出生占用检查（与玩家出生原则一致：保证出生区域无障碍、不与他车重叠）
+    const isOccupied = (x, y) => {
+      for (const o of [...this.enemies, ...this.players]) {
+        if (!o.dead && Math.hypot(o.x - x, o.y - y) < T) return true;
+      }
+      return false;
+    };
+    if (isOccupied(sp.x, sp.y)) {
+      // 在三个刷新点附近找空位（清障区内 y 限制在前两行）
+      const cands = [];
+      for (const p0 of spawnPoints) {
+        for (let dy = 0; dy <= 1; dy++) {
+          for (let dx = -2; dx <= 2; dx++) {
+            const x = p0.x + dx * T, y = p0.y + dy * T;
+            if (x > T && x < CONFIG.CANVAS_W - T && !isOccupied(x, y)) cands.push({ x, y });
+          }
+        }
+      }
+      if (cands.length) sp = cands[Math.floor(Math.random() * cands.length)];
+    }
+    const e = new EnemyTank(sp.x, sp.y, type);
+    // 生成特效
+    Game.particles.sparks(sp.x, sp.y, '#ff44ff');
+    this.enemies.push(e);
+  },
+  _spawnBossMinion() {
+    for (let i = 0; i < 2; i++) this._spawnEnemy();
+  },
+
+  _triggerBossIntro() {
+    this.isBossMode = true;
+    this.bossIntroActive = true;
+    this.bossIntroTimer = 3.2;
+    this.timeScale = 0.3;
+    this.boss = new Boss();
+    BrandTextLayer.setStage(5);
+    Game.cameraShake.trigger(12);
+    EventBus.emit('stageChange', { id: 5 });
+    setTimeout(() => { Game.cameraShake.trigger(18); }, 800);
+  },
+
+  _onEnemyKilled(d) {
+    const cfg = ENEMY_TYPES[d.type];
+    if (cfg) this.score += cfg.score;
+    AchievementTracker.increment('kills');
+    // 【技能充能】：难度越高，单击杀获得充能越少
+    const difficultyMult = 
+      this.stage.id === 1 ? 1.0 :
+      this.stage.id === 2 ? 0.8 :
+      this.stage.id === 3 ? 0.65 :
+      0.5; // Stage4 / Boss期
+    const baseCharge = cfg ? cfg.skillChargeBase : 20;
+    const chargeAmt = Math.round(baseCharge * difficultyMult);
+    for (const player of this.players) {
+      if (player.dead) continue;
+      const before = player.skillCharge;
+      player.skillCharge = Math.min(100, player.skillCharge + chargeAmt);
+      // 刚刚充满的瞬间特效
+      if (before < 100 && player.skillCharge >= 100) {
+        this.particles.spawn(player.x, player.y - 20, { vx:0, vy:-60, life:0.7, color:'#ffff44', size:16 });
+      }
+    }
+    // 飘字
+    this.particles.spawn(d.x, d.y - 20, { vx: 0, vy: -50, life: 0.8, color: '#ffff66', size: 14 });
+    // 充能飘字
+    this.particles.spawn(d.x, d.y - 36, { vx:0, vy:-30, life:0.6, color:'#88ffdd', size:10 });
+    // 掉落道具
+    if (Math.random() < 0.22) {
+      const types = ['hp','ammo','shield','double','speed'];
+      const t = types[Math.floor(Math.random()*types.length)];
+      this.powerups.push(new PowerUp(d.x, d.y, t));
+    }
+  },
+  _onBossDefeated() {
+    this.score += 3000;
+    AchievementTracker.increment('bossKills');
+    if (this.bossDamageTakenByPlayer < 0.05) {
+      AchievementTracker.stats.bossNoDamage = true;
+      AchievementTracker.check();
+    }
+    if (this.mode === 'coop') {
+      AchievementTracker.stats.coopWins++;
+      AchievementTracker.check();
+      AchievementTracker.save();
+    }
+    setTimeout(() => this._endGame(true, 'BOSS DEFEATED'), 1200);
+  },
+  _checkGameOver() {
+    if (this.mode === 'pvp') return; // 单独判定
+    if (this.players.every(p => p.dead)) {
+      setTimeout(() => this._endGame(false, 'PLAYER DEFEATED'), 800);
+    }
+  },
+  _checkPVP() {
+    const p1 = this.players[0], p2 = this.players[1];
+    if (!p1 || !p2) return;
+    if (p1.dead && p2.dead) { this._endGame(false, '双方阵亡·平局'); return; }
+    if (p1.dead || p2.dead) {
+      const winner = p1.dead ? 'PLAYER 2' : 'PLAYER 1';
+      AchievementTracker.stats.pvpWins++;
+      AchievementTracker.check();
+      AchievementTracker.save();
+      setTimeout(() => this._endGame(true, `${winner} 获胜！`), 800);
+    }
+  },
+
+  _endGame(victory, titleText) {
+    this.running = false;
+    TouchControls.show(false);
+    this.result = { victory, titleText };
+    const ov = document.getElementById('result-overlay');
+    const rt = document.getElementById('resultTitle');
+    const rs = document.getElementById('resultStats');
+    rt.textContent = victory ? (titleText || '胜 利 ！') : (titleText || '失 败');
+    rt.className = 'result-title ' + (victory ? 'victory' : 'defeat');
+    const kills = AchievementTracker.stats.kills;
+    const maxHp = this.players.reduce((s,p)=>s+p.maxHp,0);
+    rs.innerHTML = `
+      <div>总积分：<span style="color:#ffd60a;">${this.score}</span></div>
+      <div>击毁敌车：<span style="color:#ff6644;">${kills}</span> 辆</div>
+      <div>达到阶段：<span style="color:#66ccff;">STAGE ${this.stage.id}</span>${this.isBossMode ? ' (BOSS)' : ''}</div>
+      <div>历史最高：<span style="color:#ffaa22;">${AchievementTracker.stats.maxScore}</span></div>
+      ${this.players.length>1?`<div>玩家数：<span style="color:#88ffcc;">${this.players.length}</span> 人</div>`:''}
+      ${this.boss ? (this.boss.dead ? '<div>旗舰BOSS：<span style="color:#ffcc44;">✓ 已击败</span></div>' : `<div>旗舰BOSS：<span style="color:#ff4455;">未击败</span></div>`) : ''}
+    `;
+    ov.classList.add('active');
+  },
+
+  damageTile(tx, ty, dmg) {
+    if (this.tileHp[ty][tx] > 0) {
+      this.tileHp[ty][tx]--;
+      if (this.tileHp[ty][tx] <= 0) {
+        this.map[ty][tx] = TILE_TYPES.EMPTY;
+        this.score += 5;
+        AchievementTracker.increment('bricksDestroyed');
+      }
+    }
+  },
+
+  showAchievementToast(ach) {
+    const existing = document.getElementById('ach-toast');
+    if (existing) existing.remove();
+    const div = document.createElement('div');
+    div.id = 'ach-toast';
+    div.style.cssText = `position:absolute;top:80px;left:50%;transform:translateX(-50%);background:linear-gradient(180deg,#2a1a0a,#1a0a05);border:3px solid #ffd60a;padding:14px 24px;z-index:250;display:flex;align-items:center;gap:14px;box-shadow:0 0 30px rgba(255,200,50,0.6);animation:achSlide 0.5s ease-out;`;
+    div.innerHTML = `
+      <div style="width:44px;height:44px;background:linear-gradient(180deg,#ffd60a,#ff9922);display:flex;align-items:center;justify-content:center;font-size:24px;border:2px solid #aa7700;">${ach.icon}</div>
+      <div>
+        <div style="color:#ffd60a;font-size:11px;letter-spacing:2px;margin-bottom:2px;">◆ 成就解锁 ◆</div>
+        <div style="color:#fff;font-size:14px;font-weight:bold;">${ach.name}</div>
+        <div style="color:#aabbcc;font-size:10px;">${ach.desc}</div>
+      </div>
+    `;
+    document.getElementById('game-container').appendChild(div);
+    setTimeout(() => { div.style.transition = 'all 0.5s'; div.style.opacity = '0'; div.style.transform = 'translateX(-50%) translateY(-20px)'; }, 3500);
+    setTimeout(() => div.remove(), 4200);
+  },
+
+  // ---- 渲染 ----
+  _render() {
+    const ctx = this.ctx;
+    const W = CONFIG.CANVAS_W, H = CONFIG.CANVAS_H;
+    ctx.save();
+    // 相机震动偏移
+    const sh = this.cameraShake.getOffset();
+    ctx.translate(sh.x, sh.y);
+
+    // 背景
+    ctx.fillStyle = '#0e1028';
+    ctx.fillRect(-50, -50, W+100, H+100);
+    // 品牌底图
+    BrandTextLayer.render(ctx, this.isBossMode && this.boss && !this.boss.dead);
+    // 像素网格
+    ctx.strokeStyle = 'rgba(60,90,150,0.08)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= W; x += CONFIG.TILE) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
+    for (let y = 0; y <= H; y += CONFIG.TILE) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
+
+    // 地形（非草丛先画）
+    for (let y = 0; y < CONFIG.MAP_H; y++) {
+      for (let x = 0; x < CONFIG.MAP_W; x++) {
+        const t = this.map[y][x];
+        if (t !== TILE_TYPES.BUSH && t !== TILE_TYPES.EMPTY) {
+          renderTile(ctx, t, x, y, this.tileHp[y][x]);
+        }
+      }
+    }
+
+    // 道具
+    for (const p of this.powerups) p.render(ctx);
+
+    // 子弹
+    for (const b of this.bullets) b.render(ctx);
+
+    // 坦克（敌人+玩家非隐身）
+    const renderList = [...this.enemies];
+    // 玩家按顺序渲染
+    for (const p of this.players) if (!p.dead) renderList.push(p);
+    for (const t of renderList) t.render(ctx);
+
+    // Boss
+    if (this.boss && !this.boss.dead) this.boss.render(ctx);
+
+    // 草丛后画（遮罩坦克）
+    for (let y = 0; y < CONFIG.MAP_H; y++) {
+      for (let x = 0; x < CONFIG.MAP_W; x++) {
+        if (this.map[y][x] === TILE_TYPES.BUSH) renderTile(ctx, TILE_TYPES.BUSH, x, y, 0);
+      }
+    }
+
+    // 粒子
+    this.particles.render(ctx);
+
+    // 受击边缘红屏（检查任意玩家血量较低）
+    const lowHpPlayer = this.players.find(p => !p.dead && p.hp / p.maxHp < 0.25);
+    if (lowHpPlayer) {
+      const pulse = 0.15 + Math.sin(Date.now()*0.01)*0.1;
+      const grad = ctx.createRadialGradient(W/2, H/2, H*0.3, W/2, H/2, H*0.7);
+      grad.addColorStop(0, 'rgba(255,0,0,0)');
+      grad.addColorStop(1, `rgba(255,30,30,${pulse})`);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0,0,W,H);
+    }
+
+    ctx.restore();
+
+    // HUD（不受震动影响）
+    renderHUD(ctx, this);
+
+    // Stage Banner
+    if (this._stageBanner) {
+      this._stageBanner.timer -= 1/60;
+      if (this._stageBanner.timer > 0) {
+        const a = Math.min(1, this._stageBanner.timer);
+        ctx.save();
+        ctx.globalAlpha = a;
+        const bx = W/2;
+        const by = H/2 - 100;
+        ctx.font = 'bold 30px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(0, by-24, W, 52);
+        ctx.fillStyle = '#ff6633';
+        ctx.shadowColor = '#ff3322';
+        ctx.shadowBlur = 20;
+        ctx.fillText(this._stageBanner.text, bx, by+8);
+        ctx.restore();
+      } else {
+        this._stageBanner = null;
+      }
+    }
+
+    // Boss出场CG
+    if (this.bossIntroActive && this.boss) {
+      this._renderBossIntro(ctx);
+    }
+
+    // 教程遮罩
+    TutorialGuide.render(ctx);
+
+    // 时间减速视觉
+    if (this.timeScale < 1) {
+      ctx.fillStyle = `rgba(150, 50, 50, ${(1-this.timeScale)*0.15})`;
+      ctx.fillRect(0,0,W,H);
+    }
+  },
+
+  _renderBossIntro(ctx) {
+    const W = CONFIG.CANVAS_W, H = CONFIG.CANVAS_H;
+    const prog = 1 - (this.bossIntroTimer / 3.2);
+    ctx.save();
+    // 压暗
+    ctx.fillStyle = `rgba(0,0,0,${0.5 + Math.min(0.3, prog*0.5)})`;
+    ctx.fillRect(0,0,W,H);
+    // 警报边框
+    const col = Math.floor(Date.now()/120) % 2 === 0 ? '#ff2222' : '#ffaa00';
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 8;
+    ctx.shadowColor = col; ctx.shadowBlur = 20;
+    ctx.strokeRect(6, 6, W-12, H-12);
+    ctx.shadowBlur = 0;
+    // Boss从上方压入
+    const bossY = -80 + prog * (120 + 80);
+    ctx.save();
+    ctx.translate(W/2, bossY);
+    const s = 0.7 + prog * 0.5;
+    ctx.scale(s, s);
+    // 简化Boss剪影
+    ctx.fillStyle = '#111';
+    ctx.fillRect(-70, -60, 140, 110);
+    ctx.fillStyle = '#330000';
+    ctx.fillRect(-60, -50, 120, 90);
+    ctx.fillStyle = '#550000';
+    ctx.fillRect(-30, -30, 60, 60);
+    ctx.fillStyle = '#ff2200';
+    const pulse = Math.sin(Date.now()*0.02)*0.5+0.5;
+    ctx.globalAlpha = 0.6 + pulse * 0.4;
+    ctx.fillRect(-10, -10, 20, 20);
+    ctx.restore();
+    // 文字
+    if (prog > 0.5) {
+      const ap = (prog - 0.5) * 2;
+      ctx.globalAlpha = ap;
+      ctx.font = 'bold 44px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#ff3333';
+      ctx.shadowColor = '#ff0000'; ctx.shadowBlur = 24;
+      ctx.fillText('⚠ 旗舰级单位出现 ⚠', W/2, H/2 + 120);
+      ctx.font = 'bold 22px monospace';
+      ctx.fillStyle = '#ffaa00';
+      ctx.fillText('「钢铁洪流·旗舰」', W/2, H/2 + 160);
+    }
+    ctx.restore();
+  },
+
+};
+
+// 启动
+window.addEventListener('load', () => Game.init());
+
+// ============================================================
+// 🧪 测试功能：摄像头手势控制（MediaPipe Hands）
+// ------------------------------------------------------------
+// 设计原则：纯旁路输入层，不改动游戏任何既有逻辑。
+// 1. 识别结果只写入 InputManager.setVirtual('w/a/s/d/j')，
+//    手在画面中的位置映射 W/A/S/D（含斜向），握拳映射 J 开火；
+//    与键盘、移动端触控【完全同源】，游戏侧无感知（技能 Q/E 仍走键盘/⚡按钮）；
+// 2. 仅当 Game.running && Game.mode === 'single' && !Game.paused
+//    （即单人闯关进行中且未暂停）才注入方向，其余状态一律释放按键；
+// 3. 关闭开关 / 丢失手势 / 离开战斗时立即释放虚拟键，杜绝卡键；
+// 4. 摄像头按需懒加载（用户点击才申请权限），send 循环带互斥锁防重入。
+// ============================================================
+
+// 握拳判定（纯函数，便于测试）：
+// 手指张开时，指尖(TIP)离手腕(0)远、指根关节(PIP)离手腕近；
+// 手指弯曲握拳时，指尖卷回掌心，TIP 到手腕的距离会明显缩短，小于 PIP 到手腕的距离。
+// 检测食/中/无名/小四指（拇指角度因人而异，忽略），≥3 指弯曲即判为握拳。
+// 说明：
+//  - 只用 x/y 二维距离：MediaPipe 的 z 深度噪声大，纳入 3D 距离容易把握拳误判成张手；
+//  - 阈值 1.15 留足余量：半握拳/轻握也能稳定识别，张开的手比值通常 >1.6，不会误判；
+//  - 距离比与手离镜头远近无关，天然尺度自适应。
+// 返回 { fist, curls:[bool×4] }，curls 供预览逐指着色反馈。
+function gcDetectFist(lm) {
+  if (!lm || lm.length < 21) return { fist: false, curls: [false,false,false,false] };
+  const d2 = (a, b) => {
+    const dx = lm[a].x - lm[b].x, dy = lm[a].y - lm[b].y;
+    return Math.sqrt(dx*dx + dy*dy);
+  };
+  const wrist = 0;
+  const fingers = [[8, 6], [12, 10], [16, 14], [20, 18]]; // [tip, pip]
+  const curls = fingers.map(([tip, pip]) => d2(tip, wrist) < d2(pip, wrist) * 1.15);
+  const curled = curls.filter(c => c).length;
+  return { fist: curled >= 3, curls };
+}
+
+const GestureControl = {
+  running: false,       // 摄像头是否工作中
+  hands: null,
+  camera: null,
+  sending: false,       // hands.send 互斥锁，防止推理重入堆叠
+  historyX: [],         // X 滑动平均滤波窗口（左右）
+  historyY: [],         // Y 滑动平均滤波窗口（上下）
+  FILTER_WINDOW: 6,
+  filteredX: 0.5,
+  filteredY: 0.5,
+  dir: 0,               // -1=左 0=居中 1=右
+  held: { w: false, a: false, s: false, d: false, j: false }, // 手势按住的虚拟键（只释放自己按下的键）
+  // 握拳开火：滞回窗口防抖（连续 FIST_ON 帧才开火，连续 FIST_OFF 帧才停火）
+  fistRaw: false,
+  fistActive: false,
+  fistOnCount: 0,
+  fistOffCount: 0,
+  FIST_ON: 3,
+  FIST_OFF: 3,
+  el: {},
+
+  init() {
+    this.el.toggle  = document.getElementById('gc-toggle');
+    this.el.preview = document.getElementById('gc-preview');
+    this.el.canvas  = document.getElementById('gc-canvas');
+    this.el.gctx    = this.el.canvas.getContext('2d');
+    this.el.video   = document.getElementById('gc-video');
+    this.el.status  = document.getElementById('gc-status');
+    if (!this.el.toggle) return;
+    this.el.toggle.addEventListener('click', () => this.toggle());
+    window.addEventListener('beforeunload', () => this.stop());
+    // 安全兜底：页面隐藏（切后台）时释放虚拟键，防止坦克持续移动
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) this._releaseKeys();
+    });
+  },
+
+  async toggle() {
+    if (this.running) this.stop();
+    else await this.start();
+  },
+
+  async start() {
+    if (this.running) return;
+    this.el.preview.classList.add('on');
+    // —— 预检 1：file:// 直接双击打开时，浏览器把每个 file 页面视为独立安全源，
+    //    MediaPipe 的 WASM/模型 fetch 与摄像头管线会被拦截（表现为黑屏+控制台报错），
+    //    此时直接给出可读引导，不再尝试启动（避免黑屏困惑）。 ——
+    if (location.protocol === 'file:' || window.isSecureContext === false) {
+      this.el.toggle.textContent = '🖐 手势控制：关';
+      this.el.toggle.classList.remove('on');
+      this._setStatus(
+        '❌ 不能直接双击打开（file:// 安全限制，摄像头与手势模型会被浏览器拦截）。\n'
+        + '✅ 已部署 GitHub Pages？请直接用 https:// 开头的链接访问。\n'
+        + '本地预览：请运行本文件夹内的「启动手势版-双击运行.bat」，\n'
+        + '或用 Live Server / python -m http.server 以 http://localhost 打开本页。',
+        'err'
+      );
+      this.el.status.style.whiteSpace = 'pre-line';
+      return;
+    }
+    // —— 预检 2：浏览器不支持摄像头 API ——
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      this._setStatus('❌ 当前浏览器不支持摄像头 API，请使用最新版 Chrome/Edge 并以 localhost 打开', 'err');
+      return;
+    }
+    if (typeof Hands === 'undefined') {
+      this._setStatus('❌ 手势识别库未加载（需联网后刷新页面）', 'err');
+      return;
+    }
+    this._setStatus('⏳ 正在启动摄像头…', 'wait');
+    try {
+      // 懒加载：首次开启时才构造 Hands（模型文件也在此时拉取）
+      if (!this.hands) {
+        this.hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+        this.hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 0,          // 轻量模型，降低 CPU 占用、保证游戏帧率
+          selfieMode: true,            // 前置摄像头镜像：手往屏幕哪边挥，坦克就往哪边走
+          minDetectionConfidence: 0.6,
+          minTrackingConfidence: 0.5
+        });
+        this.hands.onResults((results) => this._onResults(results));
+      }
+      // 自管摄像头流（不用 MediaPipe 的 Camera 工具：它失败时会弹原生 alert，
+      // 且错误信息不可控）。getUserMedia 拿到流后绑到隐藏 video，再用 rAF 循环 send。
+      this._stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 320 }, height: { ideal: 240 }, facingMode: 'user' },
+        audio: false
+      });
+      this.el.video.srcObject = this._stream;
+      await this.el.video.play();
+
+      this.running = true;
+      this.historyX = [];
+      this.dir = 0;
+      this._raf = requestAnimationFrame(() => this._tick());
+      this.el.toggle.textContent = '🖐 手势控制：开';
+      this.el.toggle.classList.add('on');
+      this._setStatus('🟢 摄像头已开启 · ✋ 挥手左右移动 · ✊ 握拳开火（单人闯关生效）', 'ok');
+    } catch (err) {
+      this._teardownStream();
+      this.running = false;
+      this.el.toggle.textContent = '🖐 手势控制：关';
+      this.el.toggle.classList.remove('on');
+      const name = err && err.name ? err.name : '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError' || name === 'SecurityError') {
+        this._setStatus('❌ 摄像头权限被拒绝：请点击浏览器地址栏的摄像头图标允许访问后重试', 'err');
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        this._setStatus('❌ 未检测到摄像头设备，请确认设备已连接', 'err');
+      } else if (name === 'NotReadableError' || name === 'TrackStartError' || name === 'AbortError') {
+        this._setStatus('❌ 摄像头被其他程序占用，请关闭其他视频/会议软件后重试', 'err');
+      } else if (name === 'OverconstrainedError') {
+        this._setStatus('❌ 摄像头不支持所请求的分辨率，请更换设备重试', 'err');
+      } else {
+        this._setStatus('❌ 摄像头启动失败：' + (err && err.message ? err.message : String(err)), 'err');
+      }
+    }
+  },
+
+  // 推理帧循环：rAF 驱动 + send 互斥锁，一次推理未完成不发送下一帧
+  async _tick() {
+    if (!this.running) return;
+    this._raf = requestAnimationFrame(() => this._tick());
+    if (this.sending) return;
+    if (this.el.video.readyState < 2) return; // 视频帧未就绪
+    this.sending = true;
+    try { await this.hands.send({ image: this.el.video }); }
+    catch (err) { /* 单帧推理失败忽略，下一帧自动重试 */ }
+    this.sending = false;
+  },
+
+  _teardownStream() {
+    if (this._raf) { cancelAnimationFrame(this._raf); this._raf = null; }
+    if (this._stream) {
+      try { this._stream.getTracks().forEach(t => t.stop()); } catch (err) {}
+      this._stream = null;
+    }
+    if (this.el.video) this.el.video.srcObject = null;
+  },
+
+  stop() {
+    this._releaseKeys();
+    this._teardownStream();
+    this.running = false;
+    this.historyX = [];
+    this.historyY = [];
+    this.dir = 0;
+    this.el.toggle.textContent = '🖐 手势控制：关';
+    this.el.toggle.classList.remove('on');
+    this.el.preview.classList.remove('on');
+    // 清空预览
+    const g = this.el.gctx, cv = this.el.canvas;
+    g.clearRect(0, 0, cv.width, cv.height);
+  },
+
+  // 是否允许向游戏注入方向：仅【单人闯关】战斗进行中且未暂停
+  _isGameActive() {
+    return (typeof Game !== 'undefined')
+      && !!Game.running
+      && Game.mode === 'single'
+      && !Game.paused;
+  },
+
+  // 只释放【手势自己按下】的虚拟键，不抢键盘/触控摇杆的键状态
+  _releaseKeys() {
+    if (typeof InputManager !== 'undefined') {
+      if (this.held.w) InputManager.setVirtual('w', false);
+      if (this.held.a) InputManager.setVirtual('a', false);
+      if (this.held.s) InputManager.setVirtual('s', false);
+      if (this.held.d) InputManager.setVirtual('d', false);
+      if (this.held.j) InputManager.setVirtual('j', false);
+    }
+    this.held.w = false;
+    this.held.a = false;
+    this.held.s = false;
+    this.held.d = false;
+    this.held.j = false;
+    this.fistActive = false;
+    this.fistOnCount = 0;
+    this.fistOffCount = 0;
+  },
+  // 仅在状态变化时写入，避免逐帧覆盖键盘/触控；与游戏 WASD+J 完全同源
+  _applyKeys(wantW, wantA, wantS, wantD) {
+    if (typeof InputManager === 'undefined') return;
+    if (wantW !== this.held.w) { InputManager.setVirtual('w', wantW); this.held.w = wantW; }
+    if (wantA !== this.held.a) { InputManager.setVirtual('a', wantA); this.held.a = wantA; }
+    if (wantS !== this.held.s) { InputManager.setVirtual('s', wantS); this.held.s = wantS; }
+    if (wantD !== this.held.d) { InputManager.setVirtual('d', wantD); this.held.d = wantD; }
+  },
+  // 握拳开火键（j = 游戏内开火键，与触控开火按钮同源），同样只写变化
+  _applyFire(wantFire) {
+    if (typeof InputManager === 'undefined') return;
+    if (wantFire !== this.held.j) { InputManager.setVirtual('j', wantFire); this.held.j = wantFire; }
+  },
+  // 握拳滞回状态机：连续 FIST_ON 帧握拳才开火，连续 FIST_OFF 帧张手才停火
+  _updateFist(rawFist) {
+    if (rawFist) { this.fistOnCount++; this.fistOffCount = 0; }
+    else { this.fistOffCount++; this.fistOnCount = 0; }
+    if (!this.fistActive && this.fistOnCount >= this.FIST_ON) this.fistActive = true;
+    else if (this.fistActive && this.fistOffCount >= this.FIST_OFF) this.fistActive = false;
+    return this.fistActive;
+  },
+
+  _onResults(results) {
+    const cv = this.el.canvas, g = this.el.gctx;
+    const W = cv.width, H = cv.height;
+    g.clearRect(0, 0, W, H);
+
+    // 预览画面：selfieMode 下 results.image 已是镜像帧，直接绘制；
+    // 兜底（部分版本无 results.image）则手绘镜像 video。
+    if (results.image) {
+      g.drawImage(results.image, 0, 0, W, H);
+    } else if (this.el.video.videoWidth > 0) {
+      g.save(); g.translate(W, 0); g.scale(-1, 1);
+      g.drawImage(this.el.video, 0, 0, W, H);
+      g.restore();
+    } else {
+      g.fillStyle = '#05070f'; g.fillRect(0, 0, W, H);
+    }
+
+    const active = this._isGameActive();
+    const lm = (results.multiHandLandmarks && results.multiHandLandmarks.length > 0)
+      ? results.multiHandLandmarks[0] : null;
+
+    // —— 中央死区参考框（帮助用户判断手的位置对应哪个移动方向）——
+    g.strokeStyle = 'rgba(255,255,255,0.18)';
+    g.lineWidth = 1;
+    g.setLineDash([3, 3]);
+    g.strokeRect(0.40 * W, 0.38 * H, 0.20 * W, 0.26 * H);
+    g.setLineDash([]);
+
+    if (lm) {
+      // 手掌中心：中指根部 landmark 9（比单点更稳），X/Y 分别做滑动平均滤波
+      const pushAvg = (arr, v) => {
+        arr.push(v);
+        if (arr.length > this.FILTER_WINDOW) arr.shift();
+        let s = 0;
+        for (let i = 0; i < arr.length; i++) s += arr[i];
+        return s / arr.length;
+      };
+      this.filteredX = pushAvg(this.historyX, lm[9].x);
+      this.filteredY = pushAvg(this.historyY, lm[9].y);
+
+      // 握拳判定（每帧更新滞回状态机；未生效时只判定不注入）
+      const fistResult = gcDetectFist(lm);
+      const firing = this._updateFist(fistResult.fist);
+
+      // 手部骨架颜色：开火中橙红 / 生效中绿色 / 未生效蓝色
+      const boneColor = !active ? '#5588bb' : (firing ? '#ff9933' : '#00ff88');
+      if (typeof drawConnectors === 'function' && typeof HAND_CONNECTIONS !== 'undefined') {
+        drawConnectors(g, lm, HAND_CONNECTIONS, { color: boneColor, lineWidth: 1.5 });
+        drawLandmarks(g, lm, { color: firing && active ? '#ffdd44' : '#ff5577', lineWidth: 1, radius: 2 });
+      }
+      // 逐指着色反馈：弯曲的指尖红点 / 张开的指尖绿点（便于确认握拳识别）
+      const tipIds = [8, 12, 16, 20];
+      for (let i = 0; i < 4; i++) {
+        const t = tipIds[i];
+        g.beginPath();
+        g.arc(lm[t].x * W, lm[t].y * H, 3.5, 0, Math.PI * 2);
+        g.fillStyle = fistResult.curls[i] ? '#ff5533' : '#66ff99';
+        g.fill();
+        g.lineWidth = 1;
+        g.strokeStyle = '#000';
+        g.stroke();
+      }
+      // 开火角标
+      if (active && firing) {
+        g.fillStyle = 'rgba(255,60,20,0.85)';
+        g.fillRect(W - 64, 4, 60, 18);
+        g.fillStyle = '#fff';
+        g.font = 'bold 11px "Courier New", monospace';
+        g.textAlign = 'center';
+        g.fillText('✊ FIRE', W - 34, 17);
+        g.textAlign = 'left';
+      }
+
+      // 方向判定：中央死区 + 滤波，避免抖动。
+      // X 镜像已由 selfieMode 处理：手在画面右侧 = 玩家的右边 → D
+      // Y 画面上方 = 手举高 → W；下方 = 手放下 → S
+      let dx = 0, dy = 0;
+      if (this.filteredX < 0.40) dx = -1;
+      else if (this.filteredX > 0.60) dx = 1;
+      if (this.filteredY < 0.38) dy = -1;
+      else if (this.filteredY > 0.64) dy = 1;
+
+      if (active) {
+        // 注入 WASD 四键 + 握拳开火键（与键盘/触控完全同源）；技能仍由 Q/E 或 ⚡ 按钮
+        this._applyKeys(dy === -1, dx === -1, dy === 1, dx === 1);
+        this._applyFire(firing);
+        this.dir = dx;
+        const dirTxt =
+          dy === -1 && dx === -1 ? '↖️ 左上' :
+          dy === -1 && dx === 0  ? '⬆️ 向上' :
+          dy === -1 && dx === 1  ? '↗️ 右上' :
+          dy === 0  && dx === -1 ? '⬅️ 向左' :
+          dy === 0  && dx === 0  ? '🟢 居中停止' :
+          dy === 0  && dx === 1  ? '➡️ 向右' :
+          dy === 1  && dx === -1 ? '↙️ 左下' :
+          dy === 1  && dx === 0  ? '⬇️ 向下' :
+                                   '↘️ 右下';
+        const fireTxt = firing ? '✊ 开火中' : '✋ 移动';
+        this._setStatus(fireTxt + ' · ' + dirTxt, 'ok');
+      } else {
+        // 摄像头开着但不在单人闯关战斗中：不注入任何按键
+        this._releaseKeys();
+        this.dir = 0;
+        if (typeof Game !== 'undefined' && Game.running && Game.mode !== 'single') {
+          this._setStatus('⏸ 当前为双人模式，手势控制不生效（仅单人闯关）', 'wait');
+        } else if (typeof Game !== 'undefined' && Game.paused) {
+          this._setStatus('⏸ 游戏暂停中 · 恢复后手势继续控制', 'wait');
+        } else {
+          this._setStatus('🟢 摄像头就绪 · 单人闯关中：手位=移动方向，✊握拳=开火', 'wait');
+        }
+      }
+    } else {
+      // 未检测到手：释放按键，避免卡键
+      this.historyX = [];
+      this.historyY = [];
+      this._releaseKeys();
+      this.dir = 0;
+      g.fillStyle = 'rgba(0,0,0,0.45)';
+      g.fillRect(0, 0, W, H);
+      g.fillStyle = active ? '#ff7766' : '#88aacc';
+      g.font = '12px "Courier New", monospace';
+      g.textAlign = 'center';
+      g.fillText('未检测到手势', W / 2, H / 2);
+      g.textAlign = 'left';
+      this._setStatus(active ? '🔴 未检测到手势，请将手移入画面' : '🔴 未检测到手势', active ? 'err' : 'wait');
+    }
+  },
+
+  _setStatus(text, kind) {
+    const el = this.el.status;
+    if (!el) return;
+    el.textContent = text;
+    el.className = kind || '';
+  }
+};
+GestureControl.init();
+</script>
 </body>
 </html>
