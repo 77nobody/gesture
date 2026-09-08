@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>手势坦克 - 信号处理示波器</title>
+</head>
+<body>
+    <video id="video" width="640" height="480" autoplay playsinline style="border:1px solid #ccc;"></video>
+    <canvas id="canvas" width="640" height="480" style="position:absolute; top:8px; left:8px;"></canvas>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "@mediapipe/hands": "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js",
+                "@mediapipe/drawing_utils": "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js",
+                "@mediapipe/camera_utils": "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+            }
+        }
+    </script>
+    <script type="module" src="script.js"></script>
+</body>
+</html>
