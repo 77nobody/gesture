@@ -690,11 +690,6 @@
     color: #667799; max-width: 168px; letter-spacing: 0;
   }
   #gc-video { position: absolute; width: 2px; height: 2px; opacity: 0.01; pointer-events: none; left: 0; top: 0; }
-  .gc-menu-note {
-    margin-top: 16px; font-size: 10px; color: #66ffaa;
-    letter-spacing: 1px; line-height: 1.8; opacity: 0.9;
-    padding: 0 12px;
-  }
   /* —— 手机竖屏：面板缩小，避免遮挡画面与触控区 —— */
   @media (max-width: 640px) {
     #gc-screen { width: 120px; height: 90px; }
@@ -734,14 +729,6 @@
       <button class="menu-btn" onclick="Game.showTutorial('single')" style="width:300px;background:linear-gradient(180deg,#2a3a5a,#1a2a44);border-color:#4a8aff;">📖 重看单人闯关教程（7步）</button>
       <button class="menu-btn" onclick="Game.showTutorial('coop')"  style="width:300px;background:linear-gradient(180deg,#234a2f,#102a1d);border-color:#66cc88;color:#d9ffd9;">📖 重看双人协作教程（7步）</button>
       <button class="menu-btn" onclick="Game.showTutorial('pvp')"   style="width:300px;background:linear-gradient(180deg,#4a2a2a,#2a1010);border-color:#ff7766;color:#ffd9d9;">📖 重看双人对抗教程（7步）</button>
-    </div>
-    <div class="gc-menu-note">
-      🧪 测试功能：摄像头手势控制 P1<br>
-      ✋ 手在画面中的位置 = 移动方向（上下左右 / 斜向，等效 WASD）· ✊ 握拳 = 持续开火<br>
-      仅【🎮 单人闯关】模式启用 · 双人模式自动失效 · 不影响键盘/触控操作（技能仍用 Q/E 或 ⚡ 按钮）<br>
-      进入游戏后点击左上角「🖐 手势控制」并允许摄像头权限<br>
-      🌐 部署到 GitHub Pages 后用 https:// 链接打开即可直接使用；本地双击打开受浏览器安全限制，<br>
-      请运行同文件夹内「启动手势版-双击运行.bat」，或用 Live Server 以 localhost 打开
     </div>
   </div>
 
@@ -847,14 +834,16 @@
         <canvas id="gc-overlay" width="168" height="126"></canvas>
       </div>
       <div id="gc-status">点击按钮开启摄像头</div>
-      <div id="gc-note">🧪 测试功能 · ✋ 手的位置控制上下左右移动（等效WASD）· ✊ 握拳持续开火<br>仅【单人闯关】运行时生效 · 键盘/触控照常可用</div>
+      <div id="gc-note">🧪 测试功能 · ✋ 手位=上下左右移动（等效WASD）· ✊ 握拳持续开火 · ✌️ 比耶释放技能<br>仅【单人闯关】运行时生效 · 键盘/触控照常可用<br>📷 摄像头仅用于本地手势识别（基于 Google MediaPipe Hands），不录制、不存储、不上传</div>
     </div>
     <video id="gc-video" autoplay playsinline muted></video>
   </div>
 </div>
 
 <!-- 🧪 测试功能：MediaPipe 手势识别（随仓库自托管 mediapipe/ 目录，国内访问 GitHub Pages 也能直连加载，不再依赖 CDN；仅本测试页引入，不影响游戏本体逻辑）。
-     加载失败时（如旧部署未包含资源目录）自动回退到 jsdelivr CDN。 -->
+     加载失败时（如旧部署未包含资源目录）自动回退到 jsdelivr CDN。
+     声明：手势识别能力基于 Google 推出的手部关键点检测与跟踪解决方案 MediaPipe Hands；
+     摄像头画面仅在用户设备本地实时处理，不录制、不存储、不上传、不作其他用途。 -->
 <script>window.GC_MP_BASE = 'mediapipe/';</script>
 <script src="mediapipe/hands.js" crossorigin="anonymous"
   onerror="window.GC_MP_BASE='https://cdn.jsdelivr.net/npm/@mediapipe/hands/';(function(){var s=document.createElement('script');s.src=window.GC_MP_BASE+'hands.js';s.crossorigin='anonymous';document.head.appendChild(s);})();"></script>
@@ -4018,6 +4007,11 @@ window.addEventListener('load', () => Game.init());
 // ============================================================
 // 🧪 测试功能：摄像头手势控制（MediaPipe Hands）
 // ------------------------------------------------------------
+// 声明：本功能的手势识别能力基于 Google 推出的手部关键点检测与跟踪
+// 解决方案 MediaPipe Hands 构建。摄像头画面仅在用户设备本地进行
+// 实时推理，用于产生手势数据以驱动游戏输入；不进行任何形式的
+// 录制、存储、上传或另作他用。
+// ------------------------------------------------------------
 // 设计原则：纯旁路输入层，不改动游戏任何既有逻辑。
 // 1. 识别结果只写入 InputManager.setVirtual('w/a/s/d/j')，
 //    手在画面中的位置映射 W/A/S/D（含斜向），握拳映射 J 开火；
@@ -4051,6 +4045,22 @@ function gcDetectFist(lm) {
   return { fist: curled >= 3, curls };
 }
 
+// WASM SIMD 能力探测：不支持 SIMD 的老设备（部分 iOS / 旧安卓 WebView）会实例化
+// SIMD 引擎失败，表现为"模型永远加载不出来"。探测失败时改用非 SIMD 引擎文件。
+function gcProbeSimd() {
+  return new Promise(resolve => {
+    try {
+      if (typeof WebAssembly === 'undefined') return resolve(false);
+      let done = false;
+      const finish = v => { if (!done) { done = true; resolve(v); } };
+      setTimeout(() => finish(true), 1500); // 超时按支持处理，避免误伤现代设备
+      WebAssembly.instantiate(new Uint8Array([
+        0,97,115,109,1,0,0,0,1,5,1,96,0,1,123,3,2,1,0,10,10,1,8,0,65,0,253,15,11,0
+      ])).then(() => finish(true)).catch(() => finish(false));
+    } catch (err) { resolve(false); }
+  });
+}
+
 const GestureControl = {
   running: false,       // 摄像头是否工作中
   hands: null,
@@ -4074,6 +4084,14 @@ const GestureControl = {
   fistOffCount: 0,
   FIST_ON: 3,
   FIST_OFF: 3,
+  // 比耶技能：滞回 + 沿触发（从非比耶 → 比耶的瞬间 tap 一次技能键，持续比耶不重复触发）
+  victoryActive: false,
+  victoryOnCount: 0,
+  victoryOffCount: 0,
+  _victoryFired: false,
+  _victoryFlashAt: 0,
+  VICTORY_ON: 4,
+  VICTORY_OFF: 6,
   el: {},
 
   init() {
@@ -4124,16 +4142,36 @@ const GestureControl = {
       return;
     }
     if (typeof Hands === 'undefined') {
-      this._setStatus('❌ 手势识别库未加载（请确认 mediapipe/hands.js 已随页面部署，或刷新页面重试）', 'err');
+      this._setStatus('❌ 手势识别库未加载，请刷新页面重试', 'err');
+      return;
+    }
+    // —— 预检 3：隐私声明确认（正式规范：摄像头开启前必须明确告知数据用途与模型来源） ——
+    const PRIVACY_NOTICE =
+      '隐私与用途声明\n\n'
+      + '本测试功能开启摄像头后，所采集的画面仅用于在本机实时检测手部关键点（手势数据），以实现手势控制。\n'
+      + '全部数据仅在您的设备本地瞬时处理，不会被录制、存储或上传，亦不会用于任何其他用途。\n\n'
+      + '本功能的手势识别能力基于 Google 推出的手部关键点检测与跟踪解决方案（MediaPipe Hands）。\n\n'
+      + '确认开启摄像头吗？';
+    if (!window.confirm(PRIVACY_NOTICE)) {
+      this.el.preview.classList.remove('on');
+      this.el.toggle.textContent = '🖐 手势控制：关';
+      this.el.toggle.classList.remove('on');
+      this._setStatus('⏹ 您已取消，摄像头未开启', 'wait');
       return;
     }
     this._setStatus('⏳ 正在启动摄像头…', 'wait');
     try {
       // 懒加载：首次开启时才构造 Hands（模型文件也在此时拉取）
       if (!this.hands) {
+        // 老设备 SIMD 兼容：探测失败则让 locateFile 返回非 SIMD 引擎文件
+        this._noSimd = !(await gcProbeSimd());
+        if (this._noSimd) console.log('[手势] 检测到设备不支持 WASM SIMD，已切换非 SIMD 引擎');
         this.hands = new Hands({
           // 模型/WASM 资源基址：默认本地 mediapipe/（自托管），脚本加载失败时已回退 CDN
-          locateFile: (file) => (window.GC_MP_BASE || 'mediapipe/') + file
+          locateFile: (file) => {
+            if (this._noSimd && /_simd_/.test(file)) file = file.replace('_simd_', '_');
+            return (window.GC_MP_BASE || 'mediapipe/') + file;
+          }
         });
         this.hands.setOptions({
           maxNumHands: 1,
@@ -4161,12 +4199,12 @@ const GestureControl = {
       this._sendFails = 0;
       console.log('[手势] 摄像头已就绪 ' + this.el.video.videoWidth + 'x' + this.el.video.videoHeight);
       this._raf = requestAnimationFrame(() => this._tick());
-      // 推理健康检查：摄像头有画面但 6 秒内没有任何识别结果 → 模型加载失败，明确提示而非黑屏
+      // 推理健康检查：模型资源约 12MB，移动网络下载可能需要几十秒，18 秒仍无结果才提示失败
       clearTimeout(this._healthTimer);
-      this._healthTimer = setTimeout(() => this._healthCheck(), 6000);
+      this._healthTimer = setTimeout(() => this._healthCheck(), 18000);
       this.el.toggle.textContent = '🖐 手势控制：开';
       this.el.toggle.classList.add('on');
-      this._setStatus('🟢 摄像头已开启 · 手位=上下左右移动 · ✊ 握拳=开火（单人闯关生效）', 'ok');
+      this._setStatus('🟢 摄像头已开启 · 正在加载手势模型（首次约需数秒，移动网络稍慢）…', 'wait');
     } catch (err) {
       this._teardownStream();
       this.running = false;
@@ -4247,7 +4285,8 @@ const GestureControl = {
       return;
     }
     if (this._inferFrames === 0) {
-      this._setStatus('⚠️ 摄像头画面正常，但手势模型加载/推理失败（常见于模型资源未随页面完整部署）。移动与开火仍可用键盘/触控；请刷新页面重试，或确认 mediapipe/ 资源目录已上传', 'err');
+      console.warn('[手势] 模型推理未就绪：请确认 mediapipe/ 资源目录已随页面完整部署（移动网络下载约 12MB，也可能只是稍慢，可稍等或刷新重试）');
+      this._setStatus('⚠️ 手势模型加载失败，请刷新页面重试', 'err');
     }
   },
 
@@ -4304,6 +4343,10 @@ const GestureControl = {
     this.fistActive = false;
     this.fistOnCount = 0;
     this.fistOffCount = 0;
+    this.victoryActive = false;
+    this.victoryOnCount = 0;
+    this.victoryOffCount = 0;
+    this._victoryFired = false;
   },
   // 仅在状态变化时写入，避免逐帧覆盖键盘/触控；与游戏 WASD+J 完全同源
   _applyKeys(wantW, wantA, wantS, wantD) {
@@ -4325,6 +4368,14 @@ const GestureControl = {
     if (!this.fistActive && this.fistOnCount >= this.FIST_ON) this.fistActive = true;
     else if (this.fistActive && this.fistOffCount >= this.FIST_OFF) this.fistActive = false;
     return this.fistActive;
+  },
+  // 比耶滞回状态机：与握拳同构，用于技能触发防抖
+  _updateVictory(rawVictory) {
+    if (rawVictory) { this.victoryOnCount++; this.victoryOffCount = 0; }
+    else { this.victoryOffCount++; this.victoryOnCount = 0; }
+    if (!this.victoryActive && this.victoryOnCount >= this.VICTORY_ON) this.victoryActive = true;
+    else if (this.victoryActive && this.victoryOffCount >= this.VICTORY_OFF) this.victoryActive = false;
+    return this.victoryActive;
   },
 
   _onResults(results) {
@@ -4358,8 +4409,20 @@ const GestureControl = {
       const fistResult = gcDetectFist(lm);
       const firing = this._updateFist(fistResult.fist);
 
-      // 手部骨架颜色：开火中橙红 / 生效中绿色 / 未生效蓝色
-      const boneColor = !active ? '#5588bb' : (firing ? '#ff9933' : '#00ff88');
+      // 比耶技能判定（✌️：食指+中指伸直，无名指+小指弯曲；与握拳≥3指弯曲天然互斥）
+      const victory = !fistResult.curls[0] && !fistResult.curls[1]
+        && fistResult.curls[2] && fistResult.curls[3];
+      const victoryNow = this._updateVictory(victory);
+      if (active && victoryNow && !this._victoryFired) {
+        this._victoryFired = true;
+        this._victoryFlashAt = performance.now();
+        if (typeof InputManager !== 'undefined') InputManager.tapVirtual('q'); // 等效 Q/E 技能键（游戏内校验充能）
+      } else if (!victoryNow) {
+        this._victoryFired = false; // 退出比耶后才允许下一次触发
+      }
+
+      // 手部骨架颜色：开火中橙红 / 技能中紫色 / 生效中绿色 / 未生效蓝色
+      const boneColor = !active ? '#5588bb' : (firing ? '#ff9933' : (victoryNow ? '#cc88ff' : '#00ff88'));
       if (typeof drawConnectors === 'function' && typeof HAND_CONNECTIONS !== 'undefined') {
         drawConnectors(g, lm, HAND_CONNECTIONS, { color: boneColor, lineWidth: 1.5 });
         drawLandmarks(g, lm, { color: firing && active ? '#ffdd44' : '#ff5577', lineWidth: 1, radius: 2 });
@@ -4386,6 +4449,14 @@ const GestureControl = {
         g.fillText('✊ FIRE', W - 34, 17);
         g.textAlign = 'left';
       }
+      // 技能触发角标（800ms 内提示）
+      if (active && performance.now() - this._victoryFlashAt < 800) {
+        g.fillStyle = 'rgba(150,80,255,0.85)';
+        g.fillRect(4, 4, 72, 18);
+        g.fillStyle = '#fff';
+        g.font = 'bold 11px "Courier New", monospace';
+        g.fillText('✌️ SKILL', 10, 17);
+      }
 
       // 方向判定：中央死区 + 滤波，避免抖动。
       // X 镜像已由 selfieMode 处理：手在画面右侧 = 玩家的右边 → D
@@ -4411,7 +4482,7 @@ const GestureControl = {
           dy === 1  && dx === -1 ? '↙️ 左下' :
           dy === 1  && dx === 0  ? '⬇️ 向下' :
                                    '↘️ 右下';
-        const fireTxt = firing ? '✊ 开火中' : '✋ 移动';
+        const fireTxt = firing ? '✊ 开火中' : (victoryNow ? '✌️ 技能' : '✋ 移动');
         this._setStatus(fireTxt + ' · ' + dirTxt, 'ok');
       } else {
         // 摄像头开着但不在单人闯关战斗中：不注入任何按键
@@ -4422,7 +4493,7 @@ const GestureControl = {
         } else if (typeof Game !== 'undefined' && Game.paused) {
           this._setStatus('⏸ 游戏暂停中 · 恢复后手势继续控制', 'wait');
         } else {
-          this._setStatus('🟢 摄像头就绪 · 单人闯关中：手位=移动方向，✊握拳=开火', 'wait');
+          this._setStatus('🟢 摄像头就绪 · 单人闯关中：手位=移动，✊握拳=开火，✌️比耶=技能', 'wait');
         }
       }
     } else {
