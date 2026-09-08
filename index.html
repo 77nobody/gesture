@@ -2,21 +2,53 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>手势坦克 - 信号处理示波器</title>
+    <title>手势坦克</title>
 </head>
 <body>
     <video id="video" width="640" height="480" autoplay playsinline style="border:1px solid #ccc;"></video>
     <canvas id="canvas" width="640" height="480" style="position:absolute; top:8px; left:8px;"></canvas>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "@mediapipe/hands": "https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js",
-                "@mediapipe/drawing_utils": "https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js",
-                "@mediapipe/camera_utils": "https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"
+    <!-- 用 script 标签加载（不用 importmap） -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+
+    <script>
+        // 直接用全局变量，不需要 import
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults((results) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            if (results.multiHandLandmarks) {
+                for (const landmarks of results.multiHandLandmarks) {
+                    drawConnectors(ctx, landmarks, HAND_CONNECTIONS, { color: '#00FF00', lineWidth: 2 });
+                    drawLandmarks(ctx, landmarks, { color: '#FF0000', lineWidth: 2 });
+                }
             }
-        }
+        });
+
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({ image: video }); },
+            width: 640,
+            height: 480
+        });
+        camera.start();
+
+        console.log('✅ 已启动');
     </script>
-    <script type="module" src="script.js"></script>
 </body>
 </html>
