@@ -4365,9 +4365,13 @@ const GestureControl = {
     const L = this.el;
     if (!L.loading) return;
     this._loadShown = true;
+    this._loadFinishing = false;
     this._loadCur = 0;
     this._loadTarget = 0;
+    this._loadStartAt = performance.now(); // 用于最小可见时长保证（PC/宽带下模型秒加载，进度条不能一闪而过）
     clearInterval(this._loadCrawl);
+    clearTimeout(this._loadDoneTimer);
+    clearTimeout(this._loadFadeTimer);
     cancelAnimationFrame(this._loadRaf);
     L.loading.classList.add('on');
     L.loading.classList.remove('done', 'init');
@@ -4384,12 +4388,12 @@ const GestureControl = {
     cancelAnimationFrame(this._loadRaf);
     const L = this.el;
     const tick = () => {
-      this._loadCur += (this._loadTarget - this._loadCur) * 0.18;
-      if (Math.abs(this._loadTarget - this._loadCur) < 0.3) this._loadCur = this._loadTarget;
+      this._loadCur += (this._loadTarget - this._loadCur) * 0.32;
+      if (Math.abs(this._loadTarget - this._loadCur) < 0.4) this._loadCur = this._loadTarget;
       const p = Math.max(0, Math.min(100, Math.round(this._loadCur)));
       if (L.loadFill) L.loadFill.style.width = p + '%';
       if (L.loadPct) L.loadPct.textContent = p + '%';
-      if (this._loadCur < this._loadTarget - 0.2) this._loadRaf = requestAnimationFrame(tick);
+      if (this._loadCur < this._loadTarget - 0.3) this._loadRaf = requestAnimationFrame(tick);
     };
     this._loadRaf = requestAnimationFrame(tick);
   },
@@ -4410,27 +4414,40 @@ const GestureControl = {
     }, 300);
   },
   _loadDone() {
-    if (!this._loadShown) return;
-    clearInterval(this._loadCrawl);
+    if (!this._loadShown || this._loadFinishing) return;
+    this._loadFinishing = true;
     const L = this.el;
-    if (L.loading) L.loading.classList.remove('init');
-    if (L.loadStage) L.loadStage.textContent = '✅ 手势识别就绪';
-    this._loadTarget = 100;
-    this._loadRafTick();
-    setTimeout(() => {
-      if (L.loading) L.loading.classList.add('done');
-      setTimeout(() => {
-        if (L.loading) L.loading.classList.remove('on', 'done');
-        this._loadShown = false;
-      }, 450);
-    }, 450);
+    // 完成动画：跳到 100% → “就绪”停留 600ms → 淡出 500ms。
+    // 若从显示到现在不足 1400ms（PC/宽带/缓存命中时模型秒加载），补足最小时长再播放，
+    // 避免进度条一闪而过、用户根本看不到；等待期间初始化爬升动画继续。
+    const finish = () => {
+      clearInterval(this._loadCrawl);
+      if (L.loading) L.loading.classList.remove('init');
+      if (L.loadStage) L.loadStage.textContent = '✅ 手势识别就绪';
+      this._loadTarget = 100;
+      this._loadRafTick();
+      this._loadDoneTimer = setTimeout(() => {
+        if (L.loading) L.loading.classList.add('done');
+        this._loadFadeTimer = setTimeout(() => {
+          if (L.loading) L.loading.classList.remove('on', 'done');
+          this._loadShown = false;
+          this._loadFinishing = false;
+        }, 500);
+      }, 600);
+    };
+    const wait = 1400 - (performance.now() - (this._loadStartAt || 0));
+    if (wait > 0) this._loadDoneTimer = setTimeout(finish, wait);
+    else finish();
   },
   _loadHide() {
     clearInterval(this._loadCrawl);
+    clearTimeout(this._loadDoneTimer);
+    clearTimeout(this._loadFadeTimer);
     cancelAnimationFrame(this._loadRaf);
     const L = this.el;
     if (L.loading) L.loading.classList.remove('on', 'done', 'init');
     this._loadShown = false;
+    this._loadFinishing = false;
   },
 
   // 预取 MediaPipe 模型资源（wasm/模型数据包/tflite/binarypb），用 ReadableStream
