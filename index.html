@@ -677,6 +677,45 @@
     position: absolute; top: 0; left: 0;
     width: 100%; height: 100%; display: block;
   }
+  /* 模型加载进度层：覆盖在预览画面上，不拦截触摸（移动端可继续操作游戏） */
+  #gc-loading {
+    position: absolute; inset: 0; z-index: 5;
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; padding: 0 10px;
+    background: rgba(3,6,16,0.82);
+    text-align: center; pointer-events: none;
+  }
+  #gc-loading.on { display: flex; }
+  #gc-loading.done { opacity: 0; transition: opacity 0.4s ease; }
+  #gc-load-stage {
+    font-size: 10px; line-height: 1.3; color: #9fd8ff;
+    letter-spacing: 0.5px; text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  }
+  #gc-load-bar {
+    width: 82%; height: 6px; border-radius: 3px; overflow: hidden;
+    background: rgba(255,255,255,0.12);
+    box-shadow: inset 0 0 3px rgba(0,0,0,0.6);
+  }
+  #gc-load-fill {
+    width: 0%; height: 100%; border-radius: 3px;
+    background: linear-gradient(90deg, #2a7dff, #00ff88);
+    box-shadow: 0 0 6px rgba(0,255,136,0.55);
+    transition: width 0.25s ease;
+  }
+  /* 初始化阶段（无真实字节进度）：条纹流动 indeterminate 动画，明确告知"在处理"而非卡死 */
+  #gc-loading.init #gc-load-fill {
+    background: linear-gradient(90deg, #2a7dff 0%, #00ff88 40%, #2a7dff 80%);
+    background-size: 200% 100%;
+    animation: gc-load-stripes 1.1s linear infinite;
+  }
+  @keyframes gc-load-stripes {
+    from { background-position: 100% 0; }
+    to   { background-position: -100% 0; }
+  }
+  #gc-load-pct {
+    font-size: 10px; color: #00ff88; font-family: "Courier New", monospace;
+    font-weight: bold; text-shadow: 0 0 6px rgba(0,0,0,0.8);
+  }
   #gc-status {
     margin-top: 5px; font-size: 11px; line-height: 1.4;
     max-width: 168px; word-break: break-word;
@@ -697,6 +736,10 @@
     #gc-status { font-size: 10px; }
     #gc-note { font-size: 8px; line-height: 1.4; }
     #gc-toggle { font-size: 11px; padding: 4px 10px; }
+    #gc-loading { gap: 3px; padding: 0 8px; }
+    #gc-load-stage { font-size: 8px; }
+    #gc-load-bar { height: 5px; }
+    #gc-load-pct { font-size: 8px; }
   }
   /* —— 手机横屏（矮屏）：进一步压缩，隐藏说明文字 —— */
   @media (max-height: 480px) {
@@ -707,6 +750,9 @@
     #gc-note { display: none; }
     #gc-preview { padding: 4px; }
     #gc-toggle { font-size: 10px; padding: 3px 8px; }
+    #gc-load-stage { font-size: 7px; line-height: 1.2; }
+    #gc-load-pct { font-size: 7px; }
+    #gc-load-bar { height: 4px; }
   }
 </style>
 </head>
@@ -832,6 +878,11 @@
       <div id="gc-screen">
         <canvas id="gc-canvas" width="168" height="126"></canvas>
         <canvas id="gc-overlay" width="168" height="126"></canvas>
+        <div id="gc-loading">
+          <div id="gc-load-stage">准备中…</div>
+          <div id="gc-load-bar"><div id="gc-load-fill"></div></div>
+          <div id="gc-load-pct">0%</div>
+        </div>
       </div>
       <div id="gc-status">点击按钮开启摄像头</div>
       <div id="gc-note">🧪 测试功能 · ✋ 手位=上下左右移动（等效WASD）· ✊ 握拳持续开火 · ✌️ 比耶释放技能<br>仅【单人闯关】运行时生效 · 键盘/触控照常可用<br>📷 摄像头仅用于本地手势识别（基于 Google MediaPipe Hands），不录制、不存储、不上传</div>
@@ -4103,6 +4154,10 @@ const GestureControl = {
     this.el.octx    = this.el.overlay ? this.el.overlay.getContext('2d') : null;
     this.el.video   = document.getElementById('gc-video');
     this.el.status  = document.getElementById('gc-status');
+    this.el.loading = document.getElementById('gc-loading');
+    this.el.loadFill= document.getElementById('gc-load-fill');
+    this.el.loadPct = document.getElementById('gc-load-pct');
+    this.el.loadStage = document.getElementById('gc-load-stage');
     if (!this.el.toggle) return;
     this.el.toggle.addEventListener('click', () => this.toggle());
     window.addEventListener('beforeunload', () => this.stop());
@@ -4159,6 +4214,8 @@ const GestureControl = {
       this._setStatus('⏹ 您已取消，摄像头未开启', 'wait');
       return;
     }
+    this._loadShow();
+    this._loadSet(6, '正在启动摄像头…');
     this._setStatus('⏳ 正在启动摄像头…', 'wait');
     try {
       // 懒加载：首次开启时才构造 Hands（模型文件也在此时拉取）
@@ -4191,6 +4248,13 @@ const GestureControl = {
       this.el.video.srcObject = this._stream;
       await this.el.video.play();
 
+      // —— 真实下载进度：预取模型资源（fetch 流式读取统计字节），
+      //    响应进入浏览器缓存后，MediaPipe 内部请求同 URL 直接命中，不会重复下载 ——
+      this._loadSet(14, '摄像头已开启 · 下载手势模型…');
+      await this._prefetchAssets((frac) => {
+        this._loadSet(14 + frac * 74, '下载手势模型 ' + Math.round(frac * 100) + '%');
+      });
+
       this.running = true;
       this.historyX = [];
       this.historyY = [];
@@ -4199,14 +4263,17 @@ const GestureControl = {
       this._sendFails = 0;
       console.log('[手势] 摄像头已就绪 ' + this.el.video.videoWidth + 'x' + this.el.video.videoHeight);
       this._raf = requestAnimationFrame(() => this._tick());
-      // 推理健康检查：模型资源约 12MB，移动网络下载可能需要几十秒，18 秒仍无结果才提示失败
+      // 推理健康检查：预取后仍 18 秒无结果才提示失败（低端设备初始化较慢）
       clearTimeout(this._healthTimer);
       this._healthTimer = setTimeout(() => this._healthCheck(), 18000);
       this.el.toggle.textContent = '🖐 手势控制：开';
       this.el.toggle.classList.add('on');
-      this._setStatus('🟢 摄像头已开启 · 正在加载手势模型（首次约需数秒，移动网络稍慢）…', 'wait');
+      // 下载完成 → 初始化推理引擎阶段（条纹动画，首帧识别成功后进度条自动淡出）
+      this._loadInitStage();
+      this._setStatus('🟢 摄像头已开启 · 正在初始化手势模型…', 'wait');
     } catch (err) {
       this._teardownStream();
+      this._loadHide();
       this.running = false;
       this.el.toggle.textContent = '🖐 手势控制：关';
       this.el.toggle.classList.remove('on');
@@ -4285,9 +4352,133 @@ const GestureControl = {
       return;
     }
     if (this._inferFrames === 0) {
+      this._loadHide();
       console.warn('[手势] 模型推理未就绪：请确认 mediapipe/ 资源目录已随页面完整部署（移动网络下载约 12MB，也可能只是稍慢，可稍等或刷新重试）');
       this._setStatus('⚠️ 手势模型加载失败，请刷新页面重试', 'err');
     }
+  },
+
+  // —— 模型加载进度条 ——
+  // 进度来源均为真实事件：6%~14% 摄像头启动、14%~88% 资源真实字节下载、
+  // 88%~97% 引擎初始化（无字节进度，用条纹 indeterminate 动画表达"处理中"）、100% 首帧识别成功。
+  _loadShow() {
+    const L = this.el;
+    if (!L.loading) return;
+    this._loadShown = true;
+    this._loadCur = 0;
+    this._loadTarget = 0;
+    clearInterval(this._loadCrawl);
+    cancelAnimationFrame(this._loadRaf);
+    L.loading.classList.add('on');
+    L.loading.classList.remove('done', 'init');
+    if (L.loadFill) L.loadFill.style.width = '0%';
+    if (L.loadPct) L.loadPct.textContent = '0%';
+  },
+  _loadSet(pct, stage) {
+    if (!this._loadShown) return;
+    this._loadTarget = Math.max(this._loadTarget || 0, pct);
+    if (stage && this.el.loadStage) this.el.loadStage.textContent = stage;
+    this._loadRafTick();
+  },
+  _loadRafTick() {
+    cancelAnimationFrame(this._loadRaf);
+    const L = this.el;
+    const tick = () => {
+      this._loadCur += (this._loadTarget - this._loadCur) * 0.18;
+      if (Math.abs(this._loadTarget - this._loadCur) < 0.3) this._loadCur = this._loadTarget;
+      const p = Math.max(0, Math.min(100, Math.round(this._loadCur)));
+      if (L.loadFill) L.loadFill.style.width = p + '%';
+      if (L.loadPct) L.loadPct.textContent = p + '%';
+      if (this._loadCur < this._loadTarget - 0.2) this._loadRaf = requestAnimationFrame(tick);
+    };
+    this._loadRaf = requestAnimationFrame(tick);
+  },
+  // 初始化阶段：条纹流动动画 + 进度缓慢爬升（到 97% 封顶，等首帧识别成功跳 100%）
+  _loadInitStage() {
+    if (!this._loadShown) return;
+    const L = this.el;
+    if (L.loading) L.loading.classList.add('init');
+    if (L.loadStage) L.loadStage.textContent = '初始化识别引擎…';
+    this._loadTarget = 90;
+    this._loadRafTick();
+    clearInterval(this._loadCrawl);
+    this._loadCrawl = setInterval(() => {
+      if (this._loadTarget < 97) {
+        this._loadTarget = Math.min(97, this._loadTarget + 0.35);
+        this._loadRafTick();
+      }
+    }, 300);
+  },
+  _loadDone() {
+    if (!this._loadShown) return;
+    clearInterval(this._loadCrawl);
+    const L = this.el;
+    if (L.loading) L.loading.classList.remove('init');
+    if (L.loadStage) L.loadStage.textContent = '✅ 手势识别就绪';
+    this._loadTarget = 100;
+    this._loadRafTick();
+    setTimeout(() => {
+      if (L.loading) L.loading.classList.add('done');
+      setTimeout(() => {
+        if (L.loading) L.loading.classList.remove('on', 'done');
+        this._loadShown = false;
+      }, 450);
+    }, 450);
+  },
+  _loadHide() {
+    clearInterval(this._loadCrawl);
+    cancelAnimationFrame(this._loadRaf);
+    const L = this.el;
+    if (L.loading) L.loading.classList.remove('on', 'done', 'init');
+    this._loadShown = false;
+  },
+
+  // 预取 MediaPipe 模型资源（wasm/模型数据包/tflite/binarypb），用 ReadableStream
+  // 统计真实下载字节作为进度依据；完整读取后响应进入 HTTP 缓存，MediaPipe 后续请求命中缓存。
+  async _prefetchAssets(onProgress) {
+    const base = window.GC_MP_BASE || 'mediapipe/';
+    const engine = this._noSimd ? 'hands_solution_wasm_bin' : 'hands_solution_simd_wasm_bin';
+    const files = [
+      engine + '.wasm',
+      engine + '.js',
+      'hands_solution_packed_assets.data',
+      'hands_solution_packed_assets_loader.js',
+      'hand_landmark_lite.tflite',
+      'hands.binarypb'
+    ];
+    const sizes = new Array(files.length).fill(0);
+    const received = new Array(files.length).fill(0);
+    const report = () => {
+      let sumTotal = 0, sumDone = 0;
+      for (let i = 0; i < files.length; i++) {
+        sumTotal += sizes[i];
+        sumDone += sizes[i] ? Math.min(received[i], sizes[i]) : received[i];
+      }
+      onProgress(sumTotal > 0 ? Math.min(1, sumDone / sumTotal) : 0);
+    };
+    await Promise.all(files.map(async (f, i) => {
+      try {
+        const resp = await fetch(base + f);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        sizes[i] = parseInt(resp.headers.get('Content-Length') || '0', 10) || 0;
+        if (!resp.body) { await resp.arrayBuffer(); received[i] = sizes[i] || 1; report(); return; }
+        const reader = resp.body.getReader();
+        for (;;) {
+          const r = await reader.read();
+          if (r.done) break;
+          received[i] += r.value.length;
+          if (sizes[i]) report();
+        }
+        if (!sizes[i]) sizes[i] = received[i];
+        report();
+      } catch (err) {
+        // 预取失败不致命：MediaPipe 内部会自行请求，健康检查兜底
+        console.warn('[手势] 资源预取失败（将由识别引擎自行加载）:', f, err && err.message);
+        sizes[i] = sizes[i] || 1;
+        received[i] = sizes[i];
+        report();
+      }
+    }));
   },
 
   _teardownStream() {
@@ -4302,6 +4493,7 @@ const GestureControl = {
   stop() {
     this._releaseKeys();
     this._teardownStream();
+    this._loadHide();
     clearTimeout(this._healthTimer);
     this.running = false;
     this.historyX = [];
@@ -4382,6 +4574,7 @@ const GestureControl = {
     // 推理回调只负责覆盖层（骨架/指尖/角标）；摄像头画面由 _tick 每帧直绘，
     // 即使模型推理失败，预览也不会黑屏。
     this._inferFrames++;
+    if (this._inferFrames === 1) this._loadDone(); // 首帧识别成功 = 模型真正就绪，进度条到 100% 并淡出
     this._lastOverlayAt = performance.now();
     const g = this.el.octx;
     if (!g) return;
